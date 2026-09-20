@@ -1,0 +1,15 @@
+﻿=== TESTE DE INTERRUPCAO NO MEIO DO JOB (container isolado :8081) ===
+Cold start medido: 13260 ms (go run compila no start)
+Status antes do kill: {"files":[{"created_at":"2026-09-19 16:32:32","download_url":"/download/frames_20260919_163225.zip","filename":"frames_20260919_163225.zip","size":65722630}],"total":1}
+
+Estado 12s dentro do job de 483 frames:
+[uploads] total 67120 dr-xr-xr-x    1 root     root          4096 Sep 19 16:32 . drwxr-xr-x    1 root     root          4096 Sep 19 15:32 .. -rw-r--r--    1 root     root      68717095 Sep 19 16:32 20260919_163232_v480.mp4 [temp
+
+docker kill em: 13:32:44.708
+Resposta ao cliente: start=13:32:32.495 end=13:32:45.037 resposta=curl: (52) Empty reply from server |HTTP=100|time=12.505886
+Depois do kill: container NAO EXISTE (--rm) -> zips, uploads e temp destruidos
+Endpoint depois do kill: sem resposta
+
+CONCLUSAO: o cliente nao recebe resposta nem codigo de erro utilizavel; nao existe
+registro de job para retomar; frames parciais e o ZIP do job 1 desaparecem com o
+container (--rm + ausencia de volume). Nao ha reprocessamento possivel.

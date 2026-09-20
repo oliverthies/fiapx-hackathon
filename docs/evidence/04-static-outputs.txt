@@ -1,0 +1,4 @@
+﻿HTTP 200 via GET /outputs/{file}
+ElapsedMs: 5038
+Bytes: 6055887
+Arquivo servido como static file, sem auth

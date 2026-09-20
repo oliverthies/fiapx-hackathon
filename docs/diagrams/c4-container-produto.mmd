@@ -1,0 +1,17 @@
+flowchart LR
+  user["Usuário autenticado"]
+  api["API Chi :8081"]
+  worker["Worker × N + FFmpeg"]
+  db[(Postgres users/jobs)]
+  mq[[RabbitMQ video.process]]
+  fs[("/data UUID isolation")]
+  mail["Mailhog SMTP"]
+
+  user -->|JWT| api
+  api --> db
+  api --> mq
+  api --> fs
+  worker --> mq
+  worker --> db
+  worker --> fs
+  worker --> mail

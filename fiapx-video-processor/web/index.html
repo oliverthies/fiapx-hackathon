@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FIAP X — processador de vídeos</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="mark">FX</span>
+      <div>
+        <strong>FIAP X</strong>
+        <small>Processador de vídeos</small>
+      </div>
+    </div>
+    <div id="session" class="session hidden">
+      <span id="who"></span>
+      <button type="button" id="logout" class="ghost">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="auth-view" class="card">
+      <h1>Entrar</h1>
+      <p class="lede">Conta própria: só você vê e baixa os seus jobs. O FFmpeg corre no worker, não nesta página.</p>
+      <form id="auth-form">
+        <label>E-mail
+          <input type="email" id="email" autocomplete="username" required>
+        </label>
+        <label>Senha (mín. 8)
+          <input type="password" id="password" autocomplete="current-password" required minlength="8">
+        </label>
+        <p id="auth-error" class="banner error hidden" role="alert"></p>
+        <div class="row">
+          <button type="submit" id="login-btn">Entrar</button>
+          <button type="button" id="register-btn" class="ghost">Criar conta</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="app-view" class="hidden">
+      <div class="card">
+        <h1>Enviar vídeo</h1>
+        <p class="lede">A API responde <code>202 QUEUED</code> na hora. O status sobe sozinho quando o worker termina.</p>
+        <form id="upload-form" class="drop">
+          <input type="file" id="video" accept="video/*" required>
+          <button type="submit">Enfileirar</button>
+        </form>
+        <p id="upload-msg" class="banner hidden" role="status"></p>
+      </div>
+
+      <div class="card">
+        <div class="row spread">
+          <h2>Meus vídeos</h2>
+          <span id="job-count" class="muted"></span>
+        </div>
+        <div id="jobs" class="jobs"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Adapter de apresentação · mesma origem · JWT no sessionStorage · sem pasta pública de uploads
+  </footer>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

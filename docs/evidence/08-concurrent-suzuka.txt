@@ -1,0 +1,2 @@
+﻿{"success":false,"message":"Erro ao criar arquivo ZIP: open temp/20260919_154607/frame_0003.png: no such file or directory"}
+HTTP 200 time=1.923155s size=5728066

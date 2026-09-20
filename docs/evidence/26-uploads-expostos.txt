@@ -1,0 +1,12 @@
+﻿=== TESTE: video original de terceiros acessivel via /uploads ===
+Arquivo orfao deixado por um job que falhou: 20260919_161553_YTDown.com_Shorts_Ayrton-Senna-s-FASTEST-Lap-Around-Suzuka_Media_nAQXaVtX9MU_002_720p.mp4
+GET /uploads/{arquivo} -> HTTP=200 bytes=5727772 type=video/mp4
+
+Observacao: r.Static("/uploads", "./uploads") publica o video ENVIADO pelo usuario.
+Durante o processamento (e para sempre, se o job falhar) o video original fica
+baixavel por qualquer pessoa que saiba o nome. O nome e previsivel:
+{timestamp}_{nome original do arquivo}, e /api/status expoe os timestamps.
+
+GET /outputs/ e GET /uploads/ (indice do diretorio) retornam 404 -- nao ha
+directory listing. A enumeracao, no entanto, e desnecessaria: /api/status
+ja devolve a lista completa de artefatos.

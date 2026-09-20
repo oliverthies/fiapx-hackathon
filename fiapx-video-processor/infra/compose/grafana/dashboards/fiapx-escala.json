@@ -1,0 +1,136 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Fila video.process",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "rabbitmq_detailed_queue_messages{queue=\"video.process\"}",
+          "legendFormat": "mensagens",
+          "refId": "A"
+        },
+        {
+          "expr": "rabbitmq_queue_messages{queue=\"video.process\"}",
+          "legendFormat": "mensagens (agg)",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Workers ativos (consumers)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "rabbitmq_detailed_queue_consumers{queue=\"video.process\"}",
+          "legendFormat": "consumers",
+          "refId": "A"
+        },
+        {
+          "expr": "rabbitmq_queue_consumers{queue=\"video.process\"}",
+          "legendFormat": "consumers (agg)",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Throughput READY / min",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum(rate(jobs_ready_total[1m])) * 60",
+          "legendFormat": "READY/min",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "FFmpeg p50 / p95",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(ffmpeg_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(ffmpeg_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Upload bytes / s",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "rate(upload_bytes_total[1m])",
+          "legendFormat": "POST /videos",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "FAILED e DLQ",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum(rate(jobs_failed_total[1m])) * 60",
+          "legendFormat": "FAILED/min",
+          "refId": "A"
+        },
+        {
+          "expr": "rabbitmq_detailed_queue_messages{queue=\"video.process.dlq\"}",
+          "legendFormat": "DLQ",
+          "refId": "B"
+        },
+        {
+          "expr": "rabbitmq_queue_messages{queue=\"video.process.dlq\"}",
+          "legendFormat": "DLQ (agg)",
+          "refId": "C"
+        }
+      ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["fiapx"],
+  "templating": { "list": [] },
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "FIAP X — escala",
+  "uid": "fiapx-escala",
+  "version": 1
+}

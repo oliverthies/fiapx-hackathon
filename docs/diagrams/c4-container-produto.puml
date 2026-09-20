@@ -1,0 +1,38 @@
+@startuml c4-container-produto
+title FIAP X produto — C4 nível 2 (container) — to-be
+
+skinparam defaultFontName Segoe UI
+skinparam shadowing false
+
+actor "Usuário autenticado\n(e-mail + senha)" as user
+
+rectangle "Compose: fiapx-video-processor" as box #F7F7F7 {
+  rectangle "API :8081\ncmd/api\nChi + JWT" as api
+  rectangle "Worker × N\ncmd/worker\nFFmpeg só aqui" as worker
+  database "PostgreSQL 16\nusers + video_jobs" as db
+  queue "RabbitMQ\nvideo.process + DLQ" as mq
+  database "Volume mediadata\n/data/uploads|temp|outputs\nisolado por UUID" as fs
+  rectangle "Mailhog :8025\nSMTP em FAILED" as mail
+}
+
+user --> api : HTTPS lab / HTTP demo\nBearer JWT
+api --> db : persistência
+api --> mq : PublishProcess
+api --> fs : SaveOriginal
+worker --> mq : consume ack/nack
+worker --> db : QUEUED→PROCESSING→READY|FAILED
+worker --> fs : ffmpeg fps=1 + zip\ntemp/{jobId}
+worker --> mail : JobFailed
+
+note right of api
+  POST /videos = 202.
+  Sem os/exec. Sem FFmpeg.
+end note
+
+note right of worker
+  Pasta e ZIP = job UUID.
+  Dois workers não compartilham
+  timestamp (diferente do baseline).
+end note
+
+@enduml

@@ -1,0 +1,2017 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Deep dive de engenharia - baseline FIAP X</title>
+<style>
+:root{--ink:#1a1a1a;--muted:#5f6b76;--line:#e3e6ea;--accent:#1f4e79;--crit:#b02a37;--warn:#9a6700;--good:#1f7a3d;--bg:#ffffff;--soft:#f6f8fa}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:#eef1f4;color:var(--ink);font:16px/1.65 "Segoe UI",Calibri,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.shell{display:grid;grid-template-columns:284px minmax(0,1fr);gap:0;max-width:1440px;margin:0 auto;background:var(--bg);box-shadow:0 0 34px rgba(0,0,0,.09);min-height:100vh}
+nav{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;padding:26px 18px 40px;background:#12263a;color:#cfd9e3}
+nav .brand{font-size:12px;letter-spacing:.11em;text-transform:uppercase;color:#7f9cb8;margin-bottom:4px}
+nav .brandsub{font-size:15px;font-weight:600;color:#fff;line-height:1.35;margin-bottom:22px}
+nav a{display:block;text-decoration:none;color:#cfd9e3;padding:5px 9px;border-radius:4px;font-size:13.2px;line-height:1.4}
+nav a:hover{background:rgba(255,255,255,.1);color:#fff}
+nav a.toc-part{margin-top:15px;font-weight:700;color:#fff;font-size:12.4px;letter-spacing:.05em;text-transform:uppercase;border-left:3px solid #4a90c2;padding-left:9px;border-radius:0}
+nav a.toc-sec{padding-left:16px;color:#aebccb}
+main{padding:44px 58px 90px;max-width:1060px;min-width:0}
+h1.part{font-size:15px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);border-bottom:2.5px solid var(--accent);padding-bottom:9px;margin:58px 0 26px}
+h1.part:first-of-type{margin-top:0}
+h1:not(.part){font-size:31px;line-height:1.24;margin:0 0 6px;letter-spacing:-.4px}
+h2{font-size:22.5px;margin:44px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--line);line-height:1.3}
+h3{font-size:17.5px;margin:30px 0 9px;color:#26384a}
+h4{font-size:15px;margin:22px 0 7px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+p{margin:0 0 13px}
+strong{font-weight:650}
+a{color:var(--accent)}
+hr{border:0;border-top:1px solid var(--line);margin:40px 0}
+ul,ol{margin:0 0 15px;padding-left:23px}
+li{margin-bottom:6px}
+code{font-family:Consolas,"Cascadia Mono",monospace;font-size:.875em;background:var(--soft);border:1px solid #e1e6eb;border-radius:3px;padding:1px 5px;color:#7b2d6b}
+.code-block{margin:0 0 20px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#1e2733}
+.code-ref{font:600 11.5px/1 Consolas,monospace;color:#9fb6cd;background:#16202b;padding:8px 13px;border-bottom:1px solid #2a3947;letter-spacing:.03em}
+.code-block pre{margin:0;padding:15px 17px;overflow-x:auto}
+.code-block code{background:none;border:0;padding:0;color:#dbe6f0;font-size:12.9px;line-height:1.6}
+.table-wrap{overflow-x:auto;margin:0 0 22px;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:13.7px}
+th{background:#f0f3f6;font-weight:650;text-align:left;padding:10px 13px;border-bottom:2px solid #d6dce3;white-space:nowrap;color:#26384a}
+td{padding:9px 13px;border-bottom:1px solid #eef1f4;vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:nth-child(even){background:#fbfcfd}
+figure.diagram{margin:26px 0 30px;padding:16px 16px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+figure.diagram svg{display:block;height:auto;max-width:100%}
+figcaption{margin-top:11px;padding-top:9px;border-top:1px solid var(--line);font-size:12.4px;color:var(--muted);text-align:center;font-style:italic}
+.missing{color:var(--crit);font-style:italic}
+td:first-child code{white-space:nowrap}
+@media print{
+  body{background:#fff;font-size:10.6pt}
+  .shell{display:block;max-width:none;box-shadow:none}
+  nav{display:none}
+  main{padding:0;max-width:none}
+  h1.part{page-break-before:always;margin-top:0}
+  h1.part:first-of-type{page-break-before:avoid}
+  h2,h3{page-break-after:avoid}
+  figure.diagram,.table-wrap,.code-block{page-break-inside:avoid}
+  tr{page-break-inside:avoid}
+  a{color:var(--ink);text-decoration:none}
+  @page{margin:14mm 13mm}
+}
+@media(max-width:1020px){
+  .shell{grid-template-columns:1fr}
+  nav{position:static;height:auto}
+  main{padding:28px 20px 60px}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+<nav>
+<div class="brand">FIAP X &middot; Hackathon</div>
+<div class="brandsub">Deep dive de engenharia<br/>baseline as-is</div>
+<a class="toc-part" href="#deep-dive-de-engenharia-baseline-fiap-x">Deep dive de engenharia — baseline FIAP X</a>
+<a class="toc-part" href="#parte-i-enquadramento">Parte I — Enquadramento</a>
+<a class="toc-sec" href="#1-sumario-executivo">1. Sumário executivo</a>
+<a class="toc-sec" href="#2-metodologia-e-limites-da-analise">2. Metodologia e limites da análise</a>
+<a class="toc-sec" href="#3-inventario-do-sistema">3. Inventário do sistema</a>
+<a class="toc-part" href="#parte-ii-arquitetura-as-is">Parte II — Arquitetura as-is</a>
+<a class="toc-sec" href="#4-visao-de-container">4. Visão de container</a>
+<a class="toc-sec" href="#4-1-classificacao-do-estilo-arquitetural">4.1 Classificação do estilo arquitetural</a>
+<a class="toc-sec" href="#5-visao-de-componentes">5. Visão de componentes</a>
+<a class="toc-sec" href="#6-o-comportamento-sob-concorrencia">6. O comportamento sob concorrência</a>
+<a class="toc-sec" href="#7-ciclo-de-vida-do-dado">7. Ciclo de vida do dado</a>
+<a class="toc-part" href="#parte-iii-analise-por-dimensao">Parte III — Análise por dimensão</a>
+<a class="toc-sec" href="#dimensao-1-estilo-arquitetural-e-separacao-de-responsabilidades">Dimensão 1 — Estilo arquitetural e separação de responsabilidades</a>
+<a class="toc-sec" href="#dimensao-2-modelo-de-dominio-e-estados">Dimensão 2 — Modelo de domínio e estados</a>
+<a class="toc-sec" href="#dimensao-3-integracao-e-comunicacao">Dimensão 3 — Integração e comunicação</a>
+<a class="toc-sec" href="#dimensao-4-concorrencia-e-consistencia">Dimensão 4 — Concorrência e consistência</a>
+<a class="toc-sec" href="#dimensao-5-persistencia-e-durabilidade">Dimensão 5 — Persistência e durabilidade</a>
+<a class="toc-sec" href="#dimensao-6-seguranca">Dimensão 6 — Segurança</a>
+<a class="toc-sec" href="#dimensao-7-confiabilidade-e-resiliencia">Dimensão 7 — Confiabilidade e resiliência</a>
+<a class="toc-sec" href="#dimensao-8-performance-e-escalabilidade">Dimensão 8 — Performance e escalabilidade</a>
+<a class="toc-sec" href="#dimensao-9-observabilidade">Dimensão 9 — Observabilidade</a>
+<a class="toc-sec" href="#dimensao-10-testabilidade-e-qualidade">Dimensão 10 — Testabilidade e qualidade</a>
+<a class="toc-sec" href="#dimensao-11-engenharia-de-entrega">Dimensão 11 — Engenharia de entrega</a>
+<a class="toc-sec" href="#dimensao-12-contrato-de-api">Dimensão 12 — Contrato de API</a>
+<a class="toc-sec" href="#dimensao-13-manutenibilidade-e-evolutividade">Dimensão 13 — Manutenibilidade e evolutividade</a>
+<a class="toc-part" href="#parte-iv-consolidacao">Parte IV — Consolidação</a>
+<a class="toc-sec" href="#14-pontos-fortes-do-baseline">14. Pontos fortes do baseline</a>
+<a class="toc-sec" href="#15-matriz-de-risco">15. Matriz de risco</a>
+<a class="toc-sec" href="#16-maturidade-consolidada">16. Maturidade consolidada</a>
+<a class="toc-sec" href="#17-sintese-do-diagnostico">17. Síntese do diagnóstico</a>
+<a class="toc-sec" href="#18-apendices">18. Apêndices</a>
+<a class="toc-sec" href="#historico-de-revisoes">Histórico de revisões</a>
+
+</nav>
+<main>
+<h1 id="deep-dive-de-engenharia-baseline-fiap-x">Deep dive de engenharia — baseline FIAP X</h1>
+<p><strong>Diagnóstico técnico do protótipo de processamento de vídeos apresentado aos investidores</strong></p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Campo</th>
+<th style="text-align:left">Valor</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Objeto da análise</strong></td>
+<td style="text-align:left"><code>projeto-fiapx/</code> — <code>main.go</code> (437 linhas), <code>Dockerfile</code>, <code>go.mod</code>, <code>go.sum</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Natureza do artefato</strong></td>
+<td style="text-align:left">Protótipo funcional de demonstração; o próprio <code>Dockerfile</code> se declara "exemplo de como NÃO fazer"</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Objetivo deste documento</strong></td>
+<td style="text-align:left">Avaliar o sistema atual contra práticas de engenharia, arquitetura, segurança e qualidade</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>O que este documento não é</strong></td>
+<td style="text-align:left">Não é comparação com uma solução proposta, nem justificativa de reescrita. A proposta de evolução será registrada separadamente em ADR</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Data das medições</strong></td>
+<td style="text-align:left">19/09/2026, 12:34 – 13:36 (UTC−3)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Ambiente</strong></td>
+<td style="text-align:left">Windows 10 · Docker Desktop 29.8.0 (WSL2) · Intel i5-8400 6 vCPU · 8,28 GB RAM</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Runtime medido</strong></td>
+<td style="text-align:left">Imagem <code>fiapx-baseline</code> · Go 1.21.13 · Gin 1.9.1 · FFmpeg 6.1.1 (Alpine)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Evidências</strong></td>
+<td style="text-align:left"><code>docs/evidence/</code> (26 artefatos) · diagramas em <code>docs/diagrams/</code></td>
+</tr>
+</tbody></table></div>
+<hr/>
+<h1 id="parte-i-enquadramento" class="part">Parte I — Enquadramento</h1>
+<h2 id="1-sumario-executivo">1. Sumário executivo</h2>
+<p>O baseline entrega <strong>exatamente aquilo para que foi construído</strong>: recebe um arquivo de vídeo por HTTP, extrai um quadro por segundo com FFmpeg, empacota os PNGs em um <code>.zip</code> e devolve o arquivo. Em um cenário de um usuário e um arquivo por vez, o caminho feliz funciona de forma previsível e rápida — 0,91 s para um vídeo de 12 segundos. Como peça de demonstração para uma rodada de investimento, cumpre seu papel.</p>
+<p>O diagnóstico técnico, porém, identifica um problema de natureza diferente de "faltam recursos". Sob concorrência, <strong>o sistema não falha de forma segura: ele corrompe e vaza dados</strong>. Em uma rajada de oito uploads simultâneos, um cliente que enviou um vídeo de 12 segundos recebeu um ZIP com 24 imagens, sendo <strong>12 delas quadros do vídeo de outro usuário</strong> (seção 6 e Dimensão 4). Nenhuma das oito requisições recebeu código de erro HTTP; todas responderam <code>200</code>.</p>
+<p>A causa raiz é uma decisão de projeto isolada e de aparência inofensiva: a identidade do trabalho é um <strong>timestamp com precisão de um segundo</strong>, usado simultaneamente como nome do diretório temporário e do arquivo de saída. Duas requisições no mesmo segundo compartilham área de trabalho, sobrescrevem os quadros uma da outra, e a limpeza (<code>defer os.RemoveAll</code>) de uma apaga o material da outra durante a execução do FFmpeg.</p>
+<p>As demais constatações se organizam em quatro grupos:</p>
+<p><strong>Confidencialidade.</strong> Não existe autenticação em nenhuma das seis rotas. O endpoint <code>/api/status</code> devolve o inventário completo de artefatos de todos os usuários, e tanto os ZIPs quanto <strong>os vídeos originais enviados</strong> são servidos publicamente por rotas estáticas — verificamos o download de um vídeo de terceiros (5,7 MB, <code>video/mp4</code>, HTTP 200, sem credencial).</p>
+<p><strong>Durabilidade.</strong> Não há banco de dados nem volume persistente. O estado do sistema é o conteúdo de três diretórios dentro de um container efêmero. Isso não é teórico: durante esta sessão o container foi encerrado e <strong>5 arquivos ZIP totalizando aproximadamente 375 MB desapareceram</strong>, com o inventário voltando a <code>{"files":null,"total":0}</code>.</p>
+<p><strong>Recuperabilidade.</strong> Interrompendo o container 12 segundos dentro de um trabalho de 483 quadros, o cliente recebeu <code>curl: (52) Empty reply from server</code> — sem código de erro utilizável e sem identificador para reconsultar. Como não existe registro de trabalho, não há o que marcar como falho, retomar ou reprocessar. A recuperação também é lenta: o cold start medido foi de <strong>13,26 s</strong>, porque a imagem não contém binário compilado.</p>
+<p><strong>Capacidade.</strong> Um único upload consome <strong>475,66% de CPU</strong> em uma máquina de 600% (6 vCPU), ou seja, cerca de 79% do host. Não existe folga para processar dois vídeos longos simultaneamente nesta instância, independentemente dos defeitos de concorrência. O volume de saída cresce linearmente a ~0,55 MB por segundo de vídeo, sem cota nem expiração: uma hora de vídeo projeta ~2 GB de ZIP.</p>
+<p>Do ponto de vista de <strong>estilo arquitetural</strong> — eixo central deste diagnóstico — o baseline é um <strong>monólito de processo único</strong> cuja estrutura interna <strong>não</strong> corresponde a monólito modular, Clean Architecture, arquitetura em camadas nem hexagonal. A unidade de deploy é monolítica; o interior é um <em>transaction script</em> (Fowler) em um arquivo. A classificação completa está na seção 4.1.</p>
+<p>Avaliado em 13 dimensões de engenharia (Parte III), o conjunto pontua <strong>0,7 de 5</strong> em média, com quatro dimensões em zero: modelo de domínio, concorrência, persistência e segurança. A distinção relevante para as próximas decisões é que essas quatro não são lacunas de refinamento — são pré-condições para qualquer operação multiusuário.</p>
+<h2 id="2-metodologia-e-limites-da-analise">2. Metodologia e limites da análise</h2>
+<p>A avaliação combinou quatro técnicas, nesta ordem:</p>
+<p><strong>Leitura estática do código.</strong> Mapeamento das 10 funções de <code>main.go</code>, das dependências declaradas e do <code>Dockerfile</code>, identificando responsabilidades, acoplamentos e pontos de decisão arquitetural.</p>
+<p><strong>Execução e observação do caminho feliz.</strong> Construção da imagem, execução do container e uso da interface web com vídeos reais, registrando os logs de acesso do Gin e as saídas do processo.</p>
+<p><strong>Testes dinâmicos dirigidos.</strong> Experimentos desenhados para exercitar dimensões específicas: concorrência (2 e 8 uploads simultâneos), validação de entrada (arquivo com extensão falsa), controle de acesso (requisições sem credencial, tentativas de travessia de caminho), consumo de recursos (amostragem de <code>docker stats</code>), custo por duração (cinco vídeos de 12 s a 480 s) e resiliência (interrupção no meio do processamento).</p>
+<p><strong>Inspeção do artefato de execução.</strong> Análise das camadas da imagem, configuração do container, usuário efetivo, healthcheck, variáveis de ambiente e conteúdo do sistema de arquivos durante e após os testes.</p>
+<p>Os vídeos de longa duração foram produzidos com <code>ffmpeg -stream_loop</code> a partir de uma das amostras reais, preservando características de codificação e, portanto, o tamanho realista dos PNGs extraídos.</p>
+<h3 id="limites-que-devem-ser-considerados-na-leitura">Limites que devem ser considerados na leitura</h3>
+<p>Estas restrições delimitam o alcance das conclusões:</p>
+<ul>
+<li><strong>Amostra de hardware única.</strong> Todas as medições vêm de uma máquina (6 vCPU, 8,28 GB) sob Docker Desktop/WSL2. Os números absolutos variam em outro hardware; as <strong>relações</strong> (linearidade do custo, proporção de CPU, taxa de colisão) são propriedades do desenho e se mantêm.</li>
+<li><strong>Sem limites de recurso aplicados.</strong> O container rodou sem <code>--cpus</code> ou <code>--memory</code>. Em Kubernetes com limites definidos, a saturação apareceria como <em>throttling</em> ou <em>OOMKill</em> em vez de consumo de 79% do host.</li>
+<li><strong>Concorrência gerada localmente.</strong> A rajada partiu da mesma máquina que hospeda o serviço, o que adiciona contenção de CPU do lado do cliente. Isso afeta a latência medida na rajada, não a ocorrência das colisões.</li>
+<li><strong>A corrida depende de coincidência temporal.</strong> Requisições que caem em segundos distintos não colidem. As duas requisições iniciais da rajada, separadas pelo custo de inicialização dos processos de teste, concluíram normalmente. O defeito é probabilístico e cresce com a taxa de chegada — o que o torna mais perigoso, não menos: em produção ele se manifesta de forma intermitente e difícil de reproduzir.</li>
+<li><strong>Travessia de caminho não foi reproduzida.</strong> As tentativas contra <code>/download</code> e <code>/outputs</code> retornaram 404. Este relatório não afirma existir leitura arbitrária de arquivos.</li>
+</ul>
+<h2 id="3-inventario-do-sistema">3. Inventário do sistema</h2>
+<h3 id="3-1-codigo">3.1 Código</h3>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Métrica</th>
+<th style="text-align:left">Valor</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Arquivos de código</td>
+<td style="text-align:left">1 (<code>main.go</code>)</td>
+</tr>
+<tr>
+<td style="text-align:left">Linhas totais</td>
+<td style="text-align:left">437</td>
+</tr>
+<tr>
+<td style="text-align:left">Funções</td>
+<td style="text-align:left">10, todas no pacote <code>main</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Interfaces declaradas</td>
+<td style="text-align:left">0</td>
+</tr>
+<tr>
+<td style="text-align:left">Linhas de HTML/CSS/JS embutidas em string Go</td>
+<td style="text-align:left">144 (33% do arquivo, a partir da linha 293)</td>
+</tr>
+<tr>
+<td style="text-align:left">Arquivos de teste</td>
+<td style="text-align:left">0</td>
+</tr>
+<tr>
+<td style="text-align:left">Dependência direta</td>
+<td style="text-align:left"><code>github.com/gin-gonic/gin v1.9.1</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Módulos no grafo (<code>go.sum</code>)</td>
+<td style="text-align:left">36</td>
+</tr>
+<tr>
+<td style="text-align:left">Configuração externalizada</td>
+<td style="text-align:left">Nenhuma variável de ambiente lida pelo código</td>
+</tr>
+</tbody></table></div>
+<p>Distribuição das funções:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Linha</th>
+<th style="text-align:left">Função</th>
+<th style="text-align:left">Responsabilidades acumuladas</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">30</td>
+<td style="text-align:left"><code>main()</code></td>
+<td style="text-align:left">rotas, CORS inline, arranque</td>
+</tr>
+<tr>
+<td style="text-align:left">68</td>
+<td style="text-align:left"><code>createDirs()</code></td>
+<td style="text-align:left">criação dos diretórios de trabalho</td>
+</tr>
+<tr>
+<td style="text-align:left">75</td>
+<td style="text-align:left"><code>handleVideoUpload()</code></td>
+<td style="text-align:left">parsing HTTP, gravação em disco, orquestração, resposta</td>
+</tr>
+<tr>
+<td style="text-align:left">126</td>
+<td style="text-align:left"><code>processVideo()</code></td>
+<td style="text-align:left">nome do trabalho, invocação do FFmpeg, coleta de quadros, empacotamento, log</td>
+</tr>
+<tr>
+<td style="text-align:left">187</td>
+<td style="text-align:left"><code>createZipFile()</code></td>
+<td style="text-align:left">criação do arquivo ZIP</td>
+</tr>
+<tr>
+<td style="text-align:left">207</td>
+<td style="text-align:left"><code>addFileToZip()</code></td>
+<td style="text-align:left">escrita de uma entrada</td>
+</tr>
+<tr>
+<td style="text-align:left">236</td>
+<td style="text-align:left"><code>handleDownload()</code></td>
+<td style="text-align:left">entrega do artefato</td>
+</tr>
+<tr>
+<td style="text-align:left">253</td>
+<td style="text-align:left"><code>handleStatus()</code></td>
+<td style="text-align:left">varredura do diretório de saída</td>
+</tr>
+<tr>
+<td style="text-align:left">281</td>
+<td style="text-align:left"><code>isValidVideoFile()</code></td>
+<td style="text-align:left">verificação de extensão</td>
+</tr>
+<tr>
+<td style="text-align:left">293</td>
+<td style="text-align:left"><code>getHTMLForm()</code></td>
+<td style="text-align:left">interface web completa</td>
+</tr>
+</tbody></table></div>
+<h3 id="3-2-superficie-http">3.2 Superfície HTTP</h3>
+<p>Seis rotas, nenhuma protegida:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Método</th>
+<th style="text-align:left">Rota</th>
+<th style="text-align:left">Comportamento</th>
+<th style="text-align:left">Autenticação</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">GET</td>
+<td style="text-align:left"><code>/</code></td>
+<td style="text-align:left">HTML embutido no binário</td>
+<td style="text-align:left">Não</td>
+</tr>
+<tr>
+<td style="text-align:left">POST</td>
+<td style="text-align:left"><code>/upload</code></td>
+<td style="text-align:left">Upload + FFmpeg + ZIP no mesmo request</td>
+<td style="text-align:left">Não</td>
+</tr>
+<tr>
+<td style="text-align:left">GET</td>
+<td style="text-align:left"><code>/download/:filename</code></td>
+<td style="text-align:left">Envia ZIP de <code>outputs/</code></td>
+<td style="text-align:left">Não</td>
+</tr>
+<tr>
+<td style="text-align:left">GET</td>
+<td style="text-align:left"><code>/api/status</code></td>
+<td style="text-align:left"><code>Glob("outputs/*.zip")</code> — inventário global</td>
+<td style="text-align:left">Não</td>
+</tr>
+<tr>
+<td style="text-align:left">GET</td>
+<td style="text-align:left"><code>/uploads/*filepath</code></td>
+<td style="text-align:left">Serve estaticamente os <strong>vídeos enviados</strong></td>
+<td style="text-align:left">Não</td>
+</tr>
+<tr>
+<td style="text-align:left">GET</td>
+<td style="text-align:left"><code>/outputs/*filepath</code></td>
+<td style="text-align:left">Serve estaticamente os ZIPs</td>
+<td style="text-align:left">Não</td>
+</tr>
+</tbody></table></div>
+<p>Cabeçalhos de resposta observados em <code>GET /</code>:</p>
+<div class="code-block"><pre><code>Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: POST, GET, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+Content-Type: text/html</code></pre></div>
+<p>Não há <code>Authorization</code>, cookie de sessão, <code>Content-Security-Policy</code>, <code>X-Content-Type-Options</code> nem HTTPS.</p>
+<h3 id="3-3-artefato-de-execucao">3.3 Artefato de execução</h3>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Propriedade</th>
+<th style="text-align:left">Valor observado</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Tamanho da imagem</td>
+<td style="text-align:left"><strong>852 MB</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Base</td>
+<td style="text-align:left"><code>golang:1.21-alpine</code> (SDK completo, não runtime)</td>
+</tr>
+<tr>
+<td style="text-align:left">Camadas relevantes</td>
+<td style="text-align:left">256 MB (toolchain Go) · 237 MB (<code>go mod tidy</code>) · 129 MB (FFmpeg) · 8,46 MB (Alpine)</td>
+</tr>
+<tr>
+<td style="text-align:left">Comando de entrada</td>
+<td style="text-align:left"><code>CMD ["go","run","main.go"]</code> — compila a cada inicialização</td>
+</tr>
+<tr>
+<td style="text-align:left">Usuário efetivo</td>
+<td style="text-align:left">vazio → <strong>root</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Healthcheck</td>
+<td style="text-align:left"><code>null</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Multi-stage build</td>
+<td style="text-align:left">Não</td>
+</tr>
+<tr>
+<td style="text-align:left">Volumes</td>
+<td style="text-align:left"><code>Mounts=[]</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Política de reinício</td>
+<td style="text-align:left"><code>no</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Conteúdo acidental</td>
+<td style="text-align:left">diretório <code>__MACOSX</code> com 7 arquivos <code>._*</code> empacotados na imagem</td>
+</tr>
+<tr>
+<td style="text-align:left">Cold start até HTTP 200</td>
+<td style="text-align:left"><strong>13 260 ms</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Consumo em repouso</td>
+<td style="text-align:left">202,3 MB / 19 PIDs</td>
+</tr>
+</tbody></table></div>
+<p>O <code>go mod tidy</code> executado em tempo de build (em vez de <code>go mod download</code> com cache de camada) e a ausência de binário compilado explicam simultaneamente o tamanho da imagem e a lentidão de inicialização.</p>
+<hr/>
+<h1 id="parte-ii-arquitetura-as-is" class="part">Parte II — Arquitetura as-is</h1>
+<h2 id="4-visao-de-container">4. Visão de container</h2>
+<p>Todo o sistema é um processo dentro de um container. Não existe segundo serviço, banco, broker, cache, armazenamento de objetos ou componente de notificação.</p>
+<figure class="diagram"><svg width="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" font-family="Segoe UI, Calibri, Arial, sans-serif">
+  <rect width="900" height="600" fill="#ffffff"/>
+
+  <rect x="330" y="14" width="240" height="52" rx="6" fill="#f2f2f2" stroke="#666" stroke-width="1.2"/>
+  <text x="450" y="36" font-size="13" font-weight="600" text-anchor="middle" fill="#111">Usuário anônimo</text>
+  <text x="450" y="54" font-size="11" text-anchor="middle" fill="#666">sem conta, sem sessão, sem identidade</text>
+
+  <line x1="450" y1="66" x2="450" y2="120" stroke="#c0392b" stroke-width="1.6" marker-end="url(#ah)"/>
+  <text x="462" y="88" font-size="11" fill="#c0392b">HTTP :8080 · sem TLS</text>
+  <text x="462" y="103" font-size="11" fill="#c0392b">sem AuthN/AuthZ · CORS *</text>
+
+  <rect x="30" y="120" width="840" height="400" rx="8" fill="#fafafa" stroke="#444" stroke-width="1.6" stroke-dasharray="7 4"/>
+  <text x="46" y="142" font-size="12" font-weight="700" fill="#333">Container Docker único — imagem fiapx-baseline 852 MB — CMD ["go","run","main.go"] — PID 1 root</text>
+
+  <rect x="56" y="158" width="250" height="78" rx="5" fill="#eef3ff" stroke="#2c5aa0" stroke-width="1.3"/>
+  <text x="181" y="180" font-size="12.5" font-weight="600" text-anchor="middle" fill="#123">Servidor Gin :8080</text>
+  <text x="181" y="198" font-size="10.5" text-anchor="middle" fill="#445">modo debug · trust all proxies</text>
+  <text x="181" y="213" font-size="10.5" text-anchor="middle" fill="#445">HTML (144 linhas) + API na mesma binary</text>
+  <text x="181" y="228" font-size="10.5" text-anchor="middle" fill="#445">6 rotas, nenhuma protegida</text>
+
+  <rect x="340" y="158" width="230" height="78" rx="5" fill="#ffe8e8" stroke="#c0392b" stroke-width="1.3"/>
+  <text x="455" y="180" font-size="12.5" font-weight="600" text-anchor="middle" fill="#111">processVideo()</text>
+  <text x="455" y="198" font-size="10.5" text-anchor="middle" fill="#633">executa DENTRO do request HTTP</text>
+  <text x="455" y="213" font-size="10.5" text-anchor="middle" fill="#633">sem timeout, sem cancelamento</text>
+  <text x="455" y="228" font-size="10.5" text-anchor="middle" fill="#633">id do job = timestamp de 1 s</text>
+
+  <rect x="604" y="158" width="240" height="78" rx="5" fill="#f2f2f2" stroke="#666" stroke-width="1.3"/>
+  <text x="724" y="180" font-size="12.5" font-weight="600" text-anchor="middle" fill="#111">FFmpeg 6.1.1 (processo filho)</text>
+  <text x="724" y="198" font-size="10.5" text-anchor="middle" fill="#555">-vf fps=1 · até 29 threads</text>
+  <text x="724" y="213" font-size="10.5" text-anchor="middle" fill="#555">pico medido 475,66% de CPU</text>
+  <text x="724" y="228" font-size="10.5" text-anchor="middle" fill="#555">(600% disponíveis · 6 vCPU)</text>
+
+  <rect x="340" y="266" width="230" height="62" rx="5" fill="#f2f2f2" stroke="#666" stroke-width="1.3"/>
+  <text x="455" y="288" font-size="12.5" font-weight="600" text-anchor="middle" fill="#111">archive/zip</text>
+  <text x="455" y="306" font-size="10.5" text-anchor="middle" fill="#555">compressão single-thread (~100% CPU)</text>
+  <text x="455" y="321" font-size="10.5" text-anchor="middle" fill="#555">Deflate sobre PNG já comprimido</text>
+
+  <rect x="56" y="360" width="788" height="94" rx="5" fill="#fff6e5" stroke="#b8860b" stroke-width="1.4"/>
+  <text x="450" y="382" font-size="12.5" font-weight="700" text-anchor="middle" fill="#5a4200">Filesystem do container — overlayfs efêmero (Mounts=[], sem volume)</text>
+  <text x="450" y="402" font-size="11" text-anchor="middle" fill="#5a4200">/app/uploads (original) · /app/temp/{timestamp}/frame_%04d.png · /app/outputs/frames_{timestamp}.zip</text>
+  <text x="450" y="422" font-size="11" font-weight="600" text-anchor="middle" fill="#8b2500">Sem banco de dados · sem fila · sem registro de job · sem histórico</text>
+  <text x="450" y="441" font-size="11" font-weight="600" text-anchor="middle" fill="#8b2500">docker kill + --rm = perda total (comprovado: 5 ZIPs e 491 MB desapareceram)</text>
+
+  <line x1="306" y1="188" x2="340" y2="188" stroke="#c0392b" stroke-width="1.6" marker-end="url(#ah)"/>
+  <text x="323" y="180" font-size="9.5" text-anchor="middle" fill="#c0392b">síncrono</text>
+  <line x1="570" y1="188" x2="604" y2="188" stroke="#666" stroke-width="1.4" marker-end="url(#ah)"/>
+  <line x1="455" y1="236" x2="455" y2="266" stroke="#666" stroke-width="1.4" marker-end="url(#ah)"/>
+  <line x1="724" y1="236" x2="724" y2="360" stroke="#b8860b" stroke-width="1.4" marker-end="url(#ah)"/>
+  <text x="734" y="300" font-size="10" fill="#8a6508">grava frames</text>
+  <line x1="455" y1="328" x2="455" y2="360" stroke="#b8860b" stroke-width="1.4" marker-end="url(#ah)"/>
+  <line x1="150" y1="236" x2="150" y2="360" stroke="#b8860b" stroke-width="1.4" marker-end="url(#ah)"/>
+  <text x="160" y="270" font-size="10" fill="#8a6508">GET /download/:file</text>
+  <text x="160" y="285" font-size="10" fill="#8a6508">GET /outputs/* (static)</text>
+  <text x="160" y="300" font-size="10" fill="#8a6508">GET /api/status → Glob</text>
+
+  <rect x="30" y="536" width="840" height="50" rx="6" fill="#ffffff" stroke="#bbb" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="46" y="556" font-size="11.5" font-weight="700" fill="#777">Componentes ausentes em relação às fases anteriores do curso:</text>
+  <text x="46" y="574" font-size="11" fill="#777">API Gateway · serviço de autenticação/JWT · broker (RabbitMQ/Kafka) · worker independente · PostgreSQL + Flyway · Redis · object storage · SMTP/notificação · APM/métricas</text>
+
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555"/>
+    </marker>
+  </defs>
+</svg><figcaption>Diagrama de container do baseline FIAP X</figcaption></figure>
+<p>Três características desse desenho determinam quase todas as constatações posteriores:</p>
+<p><strong>O FFmpeg roda dentro do request HTTP.</strong> A conexão TCP do cliente é, na prática, o mecanismo de orquestração. Quem espera é o navegador. Não há resposta <code>202 Accepted</code>, identificador de trabalho ou consulta posterior.</p>
+<p><strong>O sistema de arquivos é o banco de dados.</strong> Estado, resultado e histórico são o conteúdo de <code>uploads/</code>, <code>temp/</code> e <code>outputs/</code>. Como não há volume, o ciclo de vida do dado está atado ao ciclo de vida do container.</p>
+<p><strong>Interface e processamento compartilham o mesmo deploy.</strong> As 144 linhas de HTML/CSS/JS moram na mesma binary que executa o FFmpeg. Não é possível escalar, publicar ou proteger uma parte sem a outra.</p>
+<h2 id="4-1-classificacao-do-estilo-arquitetural">4.1 Classificação do estilo arquitetural</h2>
+<p>Esta seção responde à pergunta que o restante do diagnóstico pressupõe: <strong>qual padrão o baseline implementa, e contra quais padrões do curso ele deve ser julgado?</strong> Sem essa classificação, é fácil tratar o sistema como “um monólito incompleto” ou como “falta de microsserviços”. Nenhuma das duas leituras é precisa.</p>
+<h3 id="unidade-de-deploy-monolito-e-isso-sozinho-nao-e-um-defeito">Unidade de deploy: monólito — e isso, sozinho, não é um defeito</h3>
+<p>Pelo critério de <strong>deploy e processo</strong>, o baseline é um monólito clássico:</p>
+<ul>
+<li>um repositório, um módulo Go (<code>video-processor</code>), um <code>main</code>;</li>
+<li>um container, um PID, uma porta;</li>
+<li>UI, API e processamento no mesmo artefato.</li>
+</ul>
+<p>Monólito <strong>não é, por si, um anti-padrão</strong>. A oficina da Fase 3 também era um monólito (<code>oficina-api</code>) e ainda assim aplicava Clean Architecture, Flyway, eventos de domínio e fronteiras internas. O curso distingue com clareza:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Conceito</th>
+<th style="text-align:left">O que significa</th>
+<th style="text-align:left">O baseline</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Monólito de deploy</strong></td>
+<td style="text-align:left">Um artefato, um processo</td>
+<td style="text-align:left"><strong>Sim</strong> — e isso é aceitável para o tamanho do problema</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Monólito modular</strong></td>
+<td style="text-align:left">Mesmo deploy, módulos com contratos e ownership</td>
+<td style="text-align:left"><strong>Não</strong> — não há módulos</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Microsserviços</strong></td>
+<td style="text-align:left">Serviços com ciclo de vida, banco e deploy próprios</td>
+<td style="text-align:left"><strong>Não</strong> — e a ausência, neste tamanho, não é o problema principal</td>
+</tr>
+</tbody></table></div>
+<p>Criticar o baseline por “não ser microsserviço” seria o erro inverso: fragmentar 437 linhas em três repositórios sem fronteiras internas só espalharia o <em>transaction script</em>. O julgamento correto é sobre <strong>estrutura interna</strong>, não sobre o número de processos.</p>
+<h3 id="estrutura-interna-transaction-script-nao-modelo-de-dominio">Estrutura interna: <em>transaction script</em>, não modelo de domínio</h3>
+<p>Martin Fowler descreve dois padrões de organização da lógica:</p>
+<ul>
+<li><strong>Transaction Script</strong> — um procedimento por operação, que lê entrada, executa passos e devolve resultado. É o que <code>handleVideoUpload</code> + <code>processVideo</code> fazem: um roteiro linear (receber → gravar → ffmpeg → zip → responder).</li>
+<li><strong>Domain Model</strong> — entidades com identidade, invariantes e transições; a aplicação orquestra, o domínio decide o que é válido.</li>
+</ul>
+<p>O baseline é <strong>Transaction Script puro</strong>. Não há agregado <code>VideoJob</code>, não há invariante (“um trabalho pertence a um usuário”), não há transição de estado. <code>VideoRequest</code> e <code>ProcessingResult</code> são DTOs de transporte; o primeiro sequer é usado. Isso explica por que a corrida de timestamp não viola “regra de domínio”: <strong>não existe regra de domínio para violar</strong>. O procedimento simplesmente compartilha um diretório.</p>
+<p>Para um protótipo de um clique, Transaction Script é o padrão <strong>correto e honesto</strong>. O diagnóstico é que o mesmo padrão foi levado a um contexto (concorrência, multi-tenant implícito, persistência de resultado) no qual ele deixa de ser suficiente.</p>
+<h3 id="clean-architecture-nao-atende">Clean Architecture: não atende</h3>
+<p>A regra de dependência de Uncle Bob exige que o domínio não conheça framework, I/O nem UI; casos de uso dependem de <strong>portas</strong>; adaptadores implementam as portas na borda.</p>
+<p>Mapeamento das camadas sobre o código real:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Camada (Clean / oficina)</th>
+<th style="text-align:left">O que deveria existir</th>
+<th style="text-align:left">O que existe no <code>main.go</code></th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Domínio</strong></td>
+<td style="text-align:left"><code>VideoJob</code>, estados, invariantes</td>
+<td style="text-align:left">Ausente</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Aplicação</strong></td>
+<td style="text-align:left">caso de uso “processar vídeo”, portas</td>
+<td style="text-align:left">Ausente — o handler <em>é</em> o caso de uso</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Adaptador de entrada</strong></td>
+<td style="text-align:left">HTTP / HTML</td>
+<td style="text-align:left"><code>handleVideoUpload</code>, <code>getHTMLForm</code> <strong>no mesmo arquivo</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Adaptador de saída</strong></td>
+<td style="text-align:left">FFmpeg, disco, e-mail</td>
+<td style="text-align:left"><code>exec.Command</code> e <code>os.*</code> <strong>dentro</strong> de <code>processVideo</code></td>
+</tr>
+</tbody></table></div>
+<p>A dependência aponta <strong>para fora</strong>: a função que deveria ser o caso de uso importa <code>os/exec</code> e escreve <code>fmt.Printf</code>. Não há <code>type VideoProcessor interface</code>. Sem porta, não há como substituir FFmpeg, gravar em S3 ou publicar na fila sem editar o núcleo.</p>
+<p>Conclusão formal: <strong>o baseline não implementa Clean Architecture</strong>, nem uma versão reduzida dela. Implementa um único adaptador que contém tudo.</p>
+<h3 id="arquitetura-em-camadas-e-hexagonal-camadas-colapsadas">Arquitetura em camadas e hexagonal: camadas colapsadas</h3>
+<p>Uma arquitetura em camadas clássica (apresentação → aplicação → domínio → infraestrutura) exigiria pelo menos pacotes ou diretórios. Hexagonal (ports &amp; adapters) exigiria o domínio no centro e adaptadores plugáveis.</p>
+<p>No baseline as quatro camadas <strong>colapsam em uma</strong>:</p>
+<div class="code-block"><pre><code>apresentação (HTML string)
+        │
+aplicação (orquestração no handler)
+        │          ← tudo no pacote main
+domínio (inexistente)
+        │
+infra (ffmpeg, filesystem, log)</code></pre></div>
+<p>Não há pacote <code>domain</code>, <code>application</code> ou <code>adapter</code>. Não há injeção de dependência. O “centro” do sistema é <code>processVideo()</code>, que é precisamente a função mais acoplada à infraestrutura.</p>
+<figure class="diagram"><svg width="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="Segoe UI, Calibri, Arial, sans-serif">
+  <rect width="900" height="520" fill="#ffffff"/>
+  <text x="20" y="26" font-size="14" font-weight="700" fill="#111">Estilo interno: Clean Architecture (referencia do curso) versus o que o baseline implementa</text>
+  <text x="20" y="44" font-size="11" fill="#666">A unidade de deploy e monolitica nos dois lados. A diferenca e a existencia de fronteiras internas e a direcao das dependencias.</text>
+
+  <text x="225" y="78" font-size="12.5" font-weight="700" text-anchor="middle" fill="#1f4e79">Referencia: Clean / camadas / hexagonal</text>
+  <text x="675" y="78" font-size="12.5" font-weight="700" text-anchor="middle" fill="#8b0000">Baseline FIAP X (main.go)</text>
+
+  <!-- left onion-ish stacked layers -->
+  <rect x="40" y="96" width="370" height="52" rx="4" fill="#eef3ff" stroke="#2c5aa0"/>
+  <text x="225" y="116" font-size="12" font-weight="600" text-anchor="middle">Apresentacao / inbound adapter</text>
+  <text x="225" y="134" font-size="10" text-anchor="middle" fill="#445">HTTP, HTML, controllers — depende da aplicacao</text>
+
+  <rect x="40" y="156" width="370" height="52" rx="4" fill="#e8f0e8" stroke="#2e7d32"/>
+  <text x="225" y="176" font-size="12" font-weight="600" text-anchor="middle">Aplicacao (casos de uso)</text>
+  <text x="225" y="194" font-size="10" text-anchor="middle" fill="#2e5e2e">orquestra; depende de portas, nao de FFmpeg</text>
+
+  <rect x="40" y="216" width="370" height="62" rx="4" fill="#fff6e5" stroke="#b8860b"/>
+  <text x="225" y="240" font-size="12" font-weight="600" text-anchor="middle">Dominio (nucleo)</text>
+  <text x="225" y="258" font-size="10" text-anchor="middle" fill="#7a5a00">VideoJob, estados, invariantes — zero framework</text>
+
+  <rect x="40" y="286" width="370" height="52" rx="4" fill="#f2f2f2" stroke="#666"/>
+  <text x="225" y="306" font-size="12" font-weight="600" text-anchor="middle">Infra / outbound adapters</text>
+  <text x="225" y="324" font-size="10" text-anchor="middle" fill="#555">FFmpeg, disco, fila, SMTP — implementam portas</text>
+
+  <text x="225" y="362" font-size="10.5" text-anchor="middle" fill="#1f4e79">Dependencias apontam para DENTRO</text>
+
+  <!-- right: collapsed blob -->
+  <rect x="480" y="96" width="390" height="242" rx="6" fill="#ffd9d9" stroke="#8b0000" stroke-width="1.6"/>
+  <text x="675" y="124" font-size="13" font-weight="700" text-anchor="middle" fill="#6b0000">package main — um unico bloco</text>
+  <text x="675" y="148" font-size="11" text-anchor="middle" fill="#5a1010">getHTMLForm()  ·  apresentacao</text>
+  <text x="675" y="168" font-size="11" text-anchor="middle" fill="#5a1010">handleVideoUpload()  ·  HTTP + orquestracao</text>
+  <text x="675" y="188" font-size="11" text-anchor="middle" fill="#5a1010">processVideo()  ·  “caso de uso”</text>
+  <text x="675" y="208" font-size="11" text-anchor="middle" fill="#5a1010">exec.Command(ffmpeg)  ·  infraestrutura</text>
+  <text x="675" y="228" font-size="11" text-anchor="middle" fill="#5a1010">os.MkdirAll / Glob / zip  ·  persistencia</text>
+  <text x="675" y="248" font-size="11" text-anchor="middle" fill="#5a1010">fmt.Printf  ·  observabilidade</text>
+  <line x1="510" y1="268" x2="840" y2="268" stroke="#c0392b" stroke-dasharray="4 3"/>
+  <text x="675" y="290" font-size="11" font-weight="600" text-anchor="middle" fill="#8b0000">Dominio: ausente  ·  portas: zero</text>
+  <text x="675" y="312" font-size="10.5" text-anchor="middle" fill="#8b0000">Dependencias apontam para FORA (os/exec, gin, html)</text>
+  <text x="675" y="328" font-size="10.5" text-anchor="middle" fill="#5a1010">Padrao interno: Transaction Script (Fowler)</text>
+
+  <!-- bottom verdict -->
+  <rect x="40" y="384" width="830" height="118" rx="5" fill="#fafafa" stroke="#888"/>
+  <text x="56" y="408" font-size="12" font-weight="700" fill="#111">Veredito de estilo</text>
+  <text x="56" y="430" font-size="11" fill="#333">Deploy: monolitico (aceitavel). Interior: nao e monolitico modular, nao e Clean Architecture, nao e hexagonal, nao e em camadas.</text>
+  <text x="56" y="450" font-size="11" fill="#333">O que falta nao e “quebrar em microsservicos”. E criar fronteiras (dominio, portas, adaptadores) dentro do mesmo deploy — ou, no maximo, separar API e worker quando o caso de uso ja estiver isolado.</text>
+  <text x="56" y="470" font-size="11" fill="#333">Critica principal: o nucleo (processVideo) e a funcao mais acoplada a infraestrutura. Em Clean Architecture, essa funcao nao poderia importar os/exec.</text>
+  <text x="56" y="490" font-size="10.5" fill="#666">Referencias de curso: Clean Architecture (Uncle Bob) · Transaction Script vs Domain Model (Fowler) · monolitico modular da Fase 3 da oficina.</text>
+</svg><figcaption>Camadas esperadas versus camadas reais do baseline</figcaption></figure>
+<h3 id="o-que-o-baseline-nao-e-para-nao-forcar-o-rotulo-errado">O que o baseline <em>não</em> é — para não forçar o rótulo errado</h3>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Padrão</th>
+<th style="text-align:left">Atende?</th>
+<th style="text-align:left">Por quê</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Monólito de deploy</td>
+<td style="text-align:left"><strong>Sim</strong></td>
+<td style="text-align:left">Um processo, um artefato</td>
+</tr>
+<tr>
+<td style="text-align:left">Monólito modular</td>
+<td style="text-align:left">Não</td>
+<td style="text-align:left">Sem módulos, sem contratos internos</td>
+</tr>
+<tr>
+<td style="text-align:left">Clean Architecture</td>
+<td style="text-align:left">Não</td>
+<td style="text-align:left">Sem domínio, sem portas, dependência invertida</td>
+</tr>
+<tr>
+<td style="text-align:left">Camadas (n-tier)</td>
+<td style="text-align:left">Não</td>
+<td style="text-align:left">Camadas colapsadas no <code>package main</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Hexagonal / ports &amp; adapters</td>
+<td style="text-align:left">Não</td>
+<td style="text-align:left">Zero interfaces</td>
+</tr>
+<tr>
+<td style="text-align:left">MVC / separação UI</td>
+<td style="text-align:left">Não</td>
+<td style="text-align:left">HTML/CSS/JS embutidos na API</td>
+</tr>
+<tr>
+<td style="text-align:left">Microsserviços</td>
+<td style="text-align:left">Não</td>
+<td style="text-align:left">Um bounded context implícito, um deploy</td>
+</tr>
+<tr>
+<td style="text-align:left">Orientado a eventos / mensageria</td>
+<td style="text-align:left">Não</td>
+<td style="text-align:left">HTTP síncrono é o único estilo</td>
+</tr>
+<tr>
+<td style="text-align:left">CQRS</td>
+<td style="text-align:left">Não</td>
+<td style="text-align:left">Mesmo caminho lê e escreve; “status” é <code>Glob</code> no disco</td>
+</tr>
+<tr>
+<td style="text-align:left">Saga / orquestração de processo</td>
+<td style="text-align:left">Não</td>
+<td style="text-align:left">Não há processo de longa duração modelado</td>
+</tr>
+</tbody></table></div>
+<h3 id="critica-arquitetural-o-que-importa-para-o-trabalho">Crítica arquitetural (o que importa para o trabalho)</h3>
+<p>Três críticas independentes, em ordem de gravidade estrutural:</p>
+<ol>
+<li><strong>Ausência de fronteira de domínio.</strong> Sem entidade e sem estados, o sistema não tem onde aplicar regra, autorização, idempotência ou observabilidade de negócio. Isso não se resolve com mais endpoints.</li>
+<li><strong>Acoplamento do caso de uso à infraestrutura.</strong> FFmpeg, disco e HTTP estão na mesma função. Qualquer mudança de estilo (fila, worker, object storage) é reescrita do núcleo, não troca de adaptador.</li>
+<li><strong>Deploy monolítico sem modularidade interna.</strong> O monólito seria defensável se houvesse módulos (auth, job, processing, delivery). Sem eles, o único eixo de escala é “mais CPU no mesmo PID” — e as medições mostram que um upload já consome ~79% do host.</li>
+</ol>
+<p>O que <strong>não</strong> se critica aqui: a decisão de um único deployável neste estágio. Um monólito modular com Clean Architecture internamente atenderia o curso e o problema sem exigir microsserviços no dia um.</p>
+<h2 id="5-visao-de-componentes">5. Visão de componentes</h2>
+<figure class="diagram"><svg width="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" font-family="Segoe UI, Calibri, Arial, sans-serif">
+  <rect width="900" height="560" fill="#ffffff"/>
+  <text x="20" y="26" font-size="14" font-weight="700" fill="#111">C4 nível 3 — componentes internos de main.go (437 linhas, pacote main, zero interfaces)</text>
+
+  <text x="20" y="62" font-size="11" font-weight="700" fill="#888">BORDA HTTP</text>
+  <line x1="20" y1="70" x2="880" y2="70" stroke="#ddd"/>
+  <text x="20" y="232" font-size="11" font-weight="700" fill="#888">REGRA E INFRAESTRUTURA MISTURADAS</text>
+  <line x1="20" y1="240" x2="880" y2="240" stroke="#ddd"/>
+  <text x="20" y="422" font-size="11" font-weight="700" fill="#888">APRESENTAÇÃO</text>
+  <line x1="20" y1="430" x2="880" y2="430" stroke="#ddd"/>
+
+  <rect x="20" y="82" width="200" height="66" rx="5" fill="#eef3ff" stroke="#2c5aa0"/>
+  <text x="120" y="104" font-size="12" font-weight="600" text-anchor="middle">main() · L30</text>
+  <text x="120" y="121" font-size="10" text-anchor="middle" fill="#445">rotas + CORS inline</text>
+  <text x="120" y="136" font-size="10" text-anchor="middle" fill="#445">sem middleware de auth</text>
+
+  <rect x="238" y="82" width="200" height="66" rx="5" fill="#ffe8e8" stroke="#c0392b"/>
+  <text x="338" y="104" font-size="12" font-weight="600" text-anchor="middle">handleVideoUpload() · L75</text>
+  <text x="338" y="121" font-size="10" text-anchor="middle" fill="#633">HTTP + I/O + orquestração</text>
+  <text x="338" y="136" font-size="10" text-anchor="middle" fill="#633">4 responsabilidades</text>
+
+  <rect x="456" y="82" width="196" height="66" rx="5" fill="#eef3ff" stroke="#2c5aa0"/>
+  <text x="554" y="104" font-size="12" font-weight="600" text-anchor="middle">handleDownload() · L236</text>
+  <text x="554" y="121" font-size="10" text-anchor="middle" fill="#445">serve ZIP sem dono</text>
+  <text x="554" y="136" font-size="10" text-anchor="middle" fill="#445">nenhuma verificação</text>
+
+  <rect x="670" y="82" width="210" height="66" rx="5" fill="#ffe8e8" stroke="#c0392b"/>
+  <text x="775" y="104" font-size="12" font-weight="600" text-anchor="middle">handleStatus() · L253</text>
+  <text x="775" y="121" font-size="10" text-anchor="middle" fill="#633">Glob("outputs/*.zip")</text>
+  <text x="775" y="136" font-size="10" text-anchor="middle" fill="#633">inventário global, não status</text>
+
+  <rect x="20" y="162" width="200" height="56" rx="5" fill="#eaf7ea" stroke="#2e7d32"/>
+  <text x="120" y="184" font-size="12" font-weight="600" text-anchor="middle">isValidVideoFile() · L281</text>
+  <text x="120" y="202" font-size="10" text-anchor="middle" fill="#2e7d32">testável · só valida extensão</text>
+
+  <rect x="238" y="162" width="200" height="56" rx="5" fill="#eaf7ea" stroke="#2e7d32"/>
+  <text x="338" y="184" font-size="12" font-weight="600" text-anchor="middle">createDirs() · L68</text>
+  <text x="338" y="202" font-size="10" text-anchor="middle" fill="#2e7d32">idempotente</text>
+
+  <rect x="20" y="252" width="418" height="120" rx="5" fill="#ffd9d9" stroke="#8b0000" stroke-width="1.6"/>
+  <text x="229" y="276" font-size="13" font-weight="700" text-anchor="middle" fill="#6b0000">processVideo() · L126 — hotspot</text>
+  <text x="229" y="296" font-size="10.5" text-anchor="middle" fill="#5a1010">timestamp de 1 s como identidade do job</text>
+  <text x="229" y="313" font-size="10.5" text-anchor="middle" fill="#5a1010">exec.Command("ffmpeg") sem timeout nem context</text>
+  <text x="229" y="330" font-size="10.5" text-anchor="middle" fill="#5a1010">Glob no diretório compartilhado, daí a contaminação</text>
+  <text x="229" y="347" font-size="10.5" text-anchor="middle" fill="#5a1010">defer os.RemoveAll() apaga pasta de outro request</text>
+  <text x="229" y="364" font-size="10.5" text-anchor="middle" fill="#5a1010">fmt.Printf como observabilidade</text>
+
+  <rect x="456" y="252" width="196" height="120" rx="5" fill="#eaf7ea" stroke="#2e7d32"/>
+  <text x="554" y="276" font-size="12" font-weight="600" text-anchor="middle">createZipFile() · L187</text>
+  <text x="554" y="296" font-size="10" text-anchor="middle" fill="#2e7d32">recebe lista de arquivos</text>
+  <text x="554" y="313" font-size="10" text-anchor="middle" fill="#2e7d32">erro propagado corretamente</text>
+  <text x="554" y="330" font-size="10" text-anchor="middle" fill="#2e7d32">sem streaming: abre tudo</text>
+  <text x="554" y="352" font-size="10" text-anchor="middle" fill="#555">chama addFileToZip() · L207</text>
+
+  <rect x="670" y="252" width="210" height="120" rx="5" fill="#fff6e5" stroke="#b8860b"/>
+  <text x="775" y="276" font-size="12" font-weight="600" text-anchor="middle">Acoplamentos implícitos</text>
+  <text x="775" y="296" font-size="10" text-anchor="middle" fill="#7a5a00">caminhos relativos hardcoded</text>
+  <text x="775" y="313" font-size="10" text-anchor="middle" fill="#7a5a00">"uploads" "temp" "outputs"</text>
+  <text x="775" y="330" font-size="10" text-anchor="middle" fill="#7a5a00">fps=1 fixo no código</text>
+  <text x="775" y="352" font-size="10" text-anchor="middle" fill="#7a5a00">porta 8080 fixa · zero env vars</text>
+
+  <rect x="20" y="442" width="860" height="66" rx="5" fill="#f0f0f5" stroke="#555"/>
+  <text x="450" y="464" font-size="12.5" font-weight="600" text-anchor="middle">getHTMLForm() · L293 — 144 linhas de HTML + CSS + JavaScript dentro de uma string Go (33% do arquivo)</text>
+  <text x="450" y="484" font-size="10.5" text-anchor="middle" fill="#444">Front-end versionado junto com o back-end · sem build, lint, minificação ou cache · qualquer ajuste de CSS exige recompilar e redeployar a API</text>
+  <text x="450" y="500" font-size="10.5" text-anchor="middle" fill="#444">Consequência: não há como escalar ou publicar a interface separadamente do processamento</text>
+
+  <rect x="20" y="524" width="14" height="14" fill="#eaf7ea" stroke="#2e7d32"/>
+  <text x="40" y="535" font-size="10.5" fill="#333">coeso e testável isoladamente</text>
+  <rect x="230" y="524" width="14" height="14" fill="#ffe8e8" stroke="#c0392b"/>
+  <text x="250" y="535" font-size="10.5" fill="#333">responsabilidades misturadas</text>
+  <rect x="450" y="524" width="14" height="14" fill="#ffd9d9" stroke="#8b0000"/>
+  <text x="470" y="535" font-size="10.5" fill="#333">hotspot: origem dos defeitos observados</text>
+  <rect x="720" y="524" width="14" height="14" fill="#eef3ff" stroke="#2c5aa0"/>
+  <text x="740" y="535" font-size="10.5" fill="#333">borda HTTP</text>
+</svg><figcaption>Componentes internos de main.go</figcaption></figure>
+<p>O arquivo é legível e a nomenclatura é clara — um leitor entende o fluxo em poucos minutos. O problema não é organização superficial, é <strong>ausência de fronteiras</strong>.</p>
+<p>Duas funções concentram responsabilidades heterogêneas. <code>handleVideoUpload()</code> faz parsing de multipart, gravação em disco, orquestração do processamento e formatação da resposta. <code>processVideo()</code> define a identidade do trabalho, invoca um processo externo, varre o sistema de arquivos, compacta o resultado e escreve log. São as duas funções onde todos os defeitos observados se originam.</p>
+<p>Três funções são coesas e testáveis isoladamente: <code>isValidVideoFile()</code>, <code>createZipFile()</code> e <code>addFileToZip()</code> recebem entrada, produzem saída ou erro, e não dependem de estado global. Elas demonstram que o problema é estrutural, não de habilidade — o autor sabe escrever função pura; apenas não havia razão, em um protótipo, para aplicar isso ao caminho principal.</p>
+<p>Não existe nenhuma interface (<code>type X interface</code>). O FFmpeg está acoplado por <code>exec.Command</code> literal, os caminhos <code>"uploads"</code>, <code>"temp"</code>, <code>"outputs"</code> são strings embutidas, a taxa <code>fps=1</code> é fixa e a porta <code>8080</code> é constante.</p>
+<h2 id="6-o-comportamento-sob-concorrencia">6. O comportamento sob concorrência</h2>
+<p>Esta é a constatação central do diagnóstico e merece a sequência completa.</p>
+<figure class="diagram"><svg width="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 640" font-family="Segoe UI, Calibri, Arial, sans-serif">
+  <rect width="900" height="640" fill="#ffffff"/>
+  <text x="20" y="24" font-size="14" font-weight="700" fill="#111">Corrida reproduzida — 6 uploads aceitos no mesmo segundo (16:15:53,54x)</text>
+  <text x="20" y="42" font-size="11" fill="#666">Evidência: docs/evidence/14-burst-8.txt e 18-zip-contaminacao.txt</text>
+
+  <rect x="26" y="60" width="150" height="40" rx="4" fill="#eef3ff" stroke="#2c5aa0"/>
+  <text x="101" y="78" font-size="11" font-weight="600" text-anchor="middle">REQ2..REQ5</text>
+  <text x="101" y="93" font-size="10" text-anchor="middle" fill="#445">short 12 s</text>
+  <line x1="101" y1="100" x2="101" y2="600" stroke="#bbb" stroke-dasharray="4 4"/>
+
+  <rect x="196" y="60" width="150" height="40" rx="4" fill="#eef3ff" stroke="#2c5aa0"/>
+  <text x="271" y="78" font-size="11" font-weight="600" text-anchor="middle">REQ6 / REQ7</text>
+  <text x="271" y="93" font-size="10" text-anchor="middle" fill="#445">long 40 s</text>
+  <line x1="271" y1="100" x2="271" y2="600" stroke="#bbb" stroke-dasharray="4 4"/>
+
+  <rect x="386" y="60" width="150" height="40" rx="4" fill="#ffe8e8" stroke="#c0392b"/>
+  <text x="461" y="78" font-size="11" font-weight="600" text-anchor="middle">Gin</text>
+  <text x="461" y="93" font-size="10" text-anchor="middle" fill="#633">handleVideoUpload</text>
+  <line x1="461" y1="100" x2="461" y2="600" stroke="#bbb" stroke-dasharray="4 4"/>
+
+  <rect x="576" y="60" width="130" height="40" rx="4" fill="#f2f2f2" stroke="#666"/>
+  <text x="641" y="84" font-size="11" font-weight="600" text-anchor="middle">FFmpeg</text>
+  <line x1="641" y1="100" x2="641" y2="600" stroke="#bbb" stroke-dasharray="4 4"/>
+
+  <rect x="746" y="60" width="140" height="40" rx="4" fill="#fff6e5" stroke="#b8860b"/>
+  <text x="816" y="78" font-size="10.5" font-weight="600" text-anchor="middle">temp/20260919_</text>
+  <text x="816" y="92" font-size="10.5" font-weight="600" text-anchor="middle">161553/</text>
+  <line x1="816" y1="100" x2="816" y2="600" stroke="#bbb" stroke-dasharray="4 4"/>
+
+  <line x1="101" y1="124" x2="455" y2="124" stroke="#2c5aa0" stroke-width="1.4" marker-end="url(#a2)"/>
+  <line x1="271" y1="140" x2="455" y2="140" stroke="#2c5aa0" stroke-width="1.4" marker-end="url(#a2)"/>
+  <text x="120" y="118" font-size="10" fill="#2c5aa0">POST /upload (x6, mesmo instante)</text>
+
+  <rect x="330" y="152" width="270" height="34" rx="3" fill="#fff9d9" stroke="#b8860b"/>
+  <text x="465" y="167" font-size="10" text-anchor="middle" fill="#5a4200">timestamp := time.Now().Format("20060102_150405")</text>
+  <text x="465" y="180" font-size="10" font-weight="700" text-anchor="middle" fill="#8b2500">mesmo valor para os 6: 20260919_161553</text>
+
+  <line x1="461" y1="204" x2="810" y2="204" stroke="#b8860b" stroke-width="1.4" marker-end="url(#a2)"/>
+  <text x="560" y="198" font-size="10" fill="#8a6508">MkdirAll: um único diretório para os 6 requests</text>
+
+  <line x1="461" y1="230" x2="635" y2="230" stroke="#666" stroke-width="1.4" marker-end="url(#a2)"/>
+  <text x="470" y="224" font-size="10" fill="#555">ffmpeg -vf fps=1 gera frame_%04d.png</text>
+  <line x1="641" y1="252" x2="810" y2="252" stroke="#666" stroke-width="1.3" marker-end="url(#a2)"/>
+  <text x="650" y="246" font-size="10" fill="#555">grava frame_0001..0012 (short)</text>
+  <line x1="641" y1="272" x2="810" y2="272" stroke="#c0392b" stroke-width="1.3" marker-end="url(#a2)"/>
+  <text x="650" y="266" font-size="10" fill="#c0392b">grava frame_0001..0040 (long) e sobrescreve</text>
+
+  <line x1="810" y1="298" x2="467" y2="298" stroke="#b8860b" stroke-width="1.4" marker-end="url(#a2)"/>
+  <text x="500" y="292" font-size="10" fill="#8a6508">Glob("temp/.../*.png") devolve 24 arquivos</text>
+
+  <rect x="300" y="310" width="380" height="46" rx="3" fill="#ffd9d9" stroke="#8b0000" stroke-width="1.4"/>
+  <text x="490" y="327" font-size="10.5" font-weight="700" text-anchor="middle" fill="#6b0000">REQ5 enviou um vídeo de 12 s e recebeu 24 frames</text>
+  <text x="490" y="343" font-size="10" text-anchor="middle" fill="#5a1010">frame_0013..0024 pertencem ao vídeo de outro upload: vazamento entre requisições</text>
+
+  <line x1="461" y1="378" x2="810" y2="378" stroke="#b8860b" stroke-width="1.4" marker-end="url(#a2)"/>
+  <text x="500" y="372" font-size="10" fill="#8a6508">cria outputs/frames_20260919_161553.zip (nome também compartilhado)</text>
+
+  <line x1="461" y1="412" x2="810" y2="412" stroke="#c0392b" stroke-width="1.8" marker-end="url(#a2)"/>
+  <text x="500" y="406" font-size="10.5" font-weight="700" fill="#c0392b">defer os.RemoveAll(temp/...) apaga a pasta enquanto os outros ainda escrevem</text>
+
+  <line x1="810" y1="440" x2="647" y2="440" stroke="#c0392b" stroke-width="1.4" marker-end="url(#a2)"/>
+  <text x="560" y="434" font-size="10" fill="#c0392b">frame_0030.png: I/O error</text>
+  <rect x="470" y="450" width="410" height="34" rx="3" fill="#ffe8e8" stroke="#c0392b"/>
+  <text x="675" y="465" font-size="10" text-anchor="middle" fill="#8b0000">"Could not open file" · "Error muxing a packet" · Conversion failed!</text>
+  <text x="675" y="478" font-size="10" text-anchor="middle" fill="#8b0000">ffmpeg exit status 251</text>
+
+  <line x1="455" y1="508" x2="107" y2="508" stroke="#c0392b" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#a2)"/>
+  <text x="120" y="502" font-size="10" fill="#c0392b">HTTP 200 · success=false · "open temp/.../frame_0019.png: no such file or directory"</text>
+  <line x1="455" y1="532" x2="277" y2="532" stroke="#c0392b" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#a2)"/>
+  <text x="120" y="526" font-size="10" fill="#c0392b">HTTP 200 · success=false · "Erro no ffmpeg: exit status 251" e stderr completo</text>
+
+  <rect x="26" y="552" width="854" height="70" rx="5" fill="#fafafa" stroke="#888"/>
+  <text x="40" y="572" font-size="11.5" font-weight="700" fill="#111">Resultado da rajada de 8 uploads simultâneos</text>
+  <text x="40" y="590" font-size="10.5" fill="#333">3 ZIPs gerados para 8 uploads · 5 requisições perderam o trabalho (62,5%) · 1 dos 3 ZIPs está contaminado com frames alheios</text>
+  <text x="40" y="606" font-size="10.5" fill="#333">Todas as 8 responderam HTTP 200 · nenhum job registrado como FAILED · o cliente que recebeu o ZIP corrompido não tem como saber</text>
+  <text x="40" y="618" font-size="10" fill="#666">Latência: requisições isoladas 0,86 a 1,28 s; dentro da rajada 4,03 a 4,25 s (degradação de cerca de 4x por contenção de CPU)</text>
+
+  <defs>
+    <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555"/>
+    </marker>
+  </defs>
+</svg><figcaption>Sequência da corrida com seis uploads no mesmo segundo</figcaption></figure>
+<p>O mecanismo, linha por linha do código:</p>
+<div class="code-block"><div class="code-ref">projeto-fiapx/main.go &middot; linhas 126-134</div><pre><code>func processVideo(videoPath, timestamp string) ProcessingResult {
+	fmt.Printf("Iniciando processamento: %s\n", videoPath)
+
+	tempDir := filepath.Join("temp", timestamp)
+	os.MkdirAll(tempDir, 0755)
+	defer os.RemoveAll(tempDir)
+
+	framePattern := filepath.Join(tempDir, "frame_%04d.png")</code></pre></div>
+<p>O <code>timestamp</code> chega de <code>handleVideoUpload()</code> como <code>time.Now().Format("20060102_150405")</code> — resolução de um segundo. Ele é usado para três finalidades que exigiriam exclusividade: nome do diretório temporário, padrão de nome dos quadros (<code>frame_%04d.png</code>, reiniciando em 1 para cada vídeo) e nome do ZIP de saída.</p>
+<p>O resultado medido com oito uploads simultâneos:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Requisição</th>
+<th style="text-align:left">Vídeo</th>
+<th style="text-align:left">HTTP</th>
+<th style="text-align:left"><code>success</code></th>
+<th style="text-align:left">Latência</th>
+<th style="text-align:left">Desfecho</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">REQ0</td>
+<td style="text-align:left">short 12 s</td>
+<td style="text-align:left">200</td>
+<td style="text-align:left"><code>true</code></td>
+<td style="text-align:left">1,28 s</td>
+<td style="text-align:left">correto (segundo isolado)</td>
+</tr>
+<tr>
+<td style="text-align:left">REQ1</td>
+<td style="text-align:left">short 12 s</td>
+<td style="text-align:left">200</td>
+<td style="text-align:left"><code>true</code></td>
+<td style="text-align:left">0,86 s</td>
+<td style="text-align:left">correto (segundo isolado)</td>
+</tr>
+<tr>
+<td style="text-align:left">REQ2</td>
+<td style="text-align:left">short 12 s</td>
+<td style="text-align:left"><strong>200</strong></td>
+<td style="text-align:left"><code>false</code></td>
+<td style="text-align:left">4,12 s</td>
+<td style="text-align:left"><code>open temp/20260919_161553/frame_0019.png: no such file or directory</code></td>
+</tr>
+<tr>
+<td style="text-align:left">REQ3</td>
+<td style="text-align:left">short 12 s</td>
+<td style="text-align:left"><strong>200</strong></td>
+<td style="text-align:left"><code>false</code></td>
+<td style="text-align:left">4,10 s</td>
+<td style="text-align:left"><code>frame_0011.png: no such file or directory</code></td>
+</tr>
+<tr>
+<td style="text-align:left">REQ4</td>
+<td style="text-align:left">short 12 s</td>
+<td style="text-align:left"><strong>200</strong></td>
+<td style="text-align:left"><code>false</code></td>
+<td style="text-align:left">4,03 s</td>
+<td style="text-align:left"><code>frame_0021.png: no such file or directory</code></td>
+</tr>
+<tr>
+<td style="text-align:left">REQ5</td>
+<td style="text-align:left">short 12 s</td>
+<td style="text-align:left"><strong>200</strong></td>
+<td style="text-align:left"><code>true</code></td>
+<td style="text-align:left">4,07 s</td>
+<td style="text-align:left"><strong>ZIP com 24 quadros — 12 de outro vídeo</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">REQ6</td>
+<td style="text-align:left">long 40 s</td>
+<td style="text-align:left"><strong>200</strong></td>
+<td style="text-align:left"><code>false</code></td>
+<td style="text-align:left">4,25 s</td>
+<td style="text-align:left"><code>ffmpeg exit status 251</code> · <code>Could not open file … frame_0030.png</code></td>
+</tr>
+<tr>
+<td style="text-align:left">REQ7</td>
+<td style="text-align:left">long 40 s</td>
+<td style="text-align:left"><strong>200</strong></td>
+<td style="text-align:left"><code>false</code></td>
+<td style="text-align:left">4,25 s</td>
+<td style="text-align:left"><code>ffmpeg exit status 251</code> · <code>Conversion failed!</code></td>
+</tr>
+</tbody></table></div>
+<p>Oito uploads produziram três ZIPs. Cinco requisições (62,5%) perderam o trabalho integralmente. Todas responderam <code>HTTP 200</code>.</p>
+<h3 id="a-prova-do-vazamento">A prova do vazamento</h3>
+<p>O arquivo <code>frames_20260919_161553.zip</code> foi baixado e inspecionado entrada por entrada:</p>
+<div class="code-block"><pre><code>frame_0001.png  377656 bytes   ┐
+frame_0002.png  365815 bytes   │ idênticos byte a byte aos quadros
+...                            │ do vídeo de 12 s (confirmado contra
+frame_0012.png  657074 bytes   ┘ os ZIPs de REQ0 e REQ1)
+frame_0013.png  511897 bytes   ┐
+frame_0014.png  513949 bytes   │ não podem pertencer a um vídeo de
+...                            │ 12 s com fps=1 — vêm do vídeo de
+frame_0024.png  647808 bytes   ┘ 40 s enviado por outra requisição</code></pre></div>
+<p>Um vídeo de 12 segundos a um quadro por segundo produz no máximo 12 imagens. As entradas 13 a 24 só podem ter origem em outro upload. O cliente recebeu <code>success: true</code> e um arquivo aparentemente válido: <strong>não existe sinal algum, na resposta ou no artefato, que permita perceber a contaminação</strong>.</p>
+<p>O arquivo está preservado em <code>docs/evidence/PROVA-zip-contaminado-24frames.zip</code>.</p>
+<h3 id="por-que-o-ffmpeg-falhou">Por que o FFmpeg falhou</h3>
+<p>As requisições 6 e 7 não falharam por vídeo inválido. O <code>stderr</code> mostra o processamento avançando normalmente e sendo interrompido:</p>
+<div class="code-block"><pre><code>frame=   28 fps=7.6 q=-0.0 size=N/A time=00:00:27.00 bitrate=N/A speed=7.35x
+[image2 @ 0x…] Could not open file : temp/20260919_161553/frame_0030.png
+[vost#0:0/png @ 0x…] Error submitting a packet to the muxer: I/O error
+Conversion failed!</code></pre></div>
+<p>O diretório foi removido <strong>enquanto o FFmpeg escrevia nele</strong> — o <code>defer os.RemoveAll(tempDir)</code> de uma das requisições que terminou primeiro. A compensação de um trabalho destrói o trabalho em andamento de outro.</p>
+<h3 id="degradacao-de-latencia">Degradação de latência</h3>
+<p>A mesma operação custa 0,86–1,28 s isolada e 4,03–4,25 s dentro da rajada: aproximadamente <strong>4x</strong> de degradação por contenção de CPU. Não há fila, limite de concorrência ou <em>backpressure</em> — a admissão é ilimitada e a degradação é repassada integralmente a todos os clientes.</p>
+<h2 id="7-ciclo-de-vida-do-dado">7. Ciclo de vida do dado</h2>
+<figure class="diagram"><svg width="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 430" font-family="Segoe UI, Calibri, Arial, sans-serif">
+  <rect width="900" height="430" fill="#ffffff"/>
+  <text x="20" y="24" font-size="14" font-weight="700" fill="#111">Ciclo de vida do dado: onde o arquivo vive e o que acontece na falha</text>
+  <text x="20" y="42" font-size="11" fill="#666">Nenhuma etapa é registrada fora do sistema de arquivos. Não há estado consultável entre o POST e a resposta.</text>
+
+  <rect x="20" y="66" width="155" height="86" rx="5" fill="#eef3ff" stroke="#2c5aa0"/>
+  <text x="97" y="86" font-size="11.5" font-weight="700" text-anchor="middle">1. Recepção</text>
+  <text x="97" y="104" font-size="9.8" text-anchor="middle" fill="#445">multipart em memória</text>
+  <text x="97" y="118" font-size="9.8" text-anchor="middle" fill="#445">(32 MB) e spill em disco</text>
+  <text x="97" y="134" font-size="9.8" text-anchor="middle" fill="#445">valida só a extensão</text>
+  <text x="97" y="147" font-size="9.8" font-weight="600" text-anchor="middle" fill="#8b2500">sem limite de tamanho</text>
+
+  <rect x="196" y="66" width="155" height="86" rx="5" fill="#fff6e5" stroke="#b8860b"/>
+  <text x="273" y="86" font-size="11.5" font-weight="700" text-anchor="middle">2. uploads/</text>
+  <text x="273" y="104" font-size="9.8" text-anchor="middle" fill="#7a5a00">{timestamp}_{nome}</text>
+  <text x="273" y="118" font-size="9.8" text-anchor="middle" fill="#7a5a00">nome do cliente no path</text>
+  <text x="273" y="134" font-size="9.8" font-weight="600" text-anchor="middle" fill="#8b2500">colisão sobrescreve</text>
+  <text x="273" y="147" font-size="9.8" text-anchor="middle" fill="#7a5a00">o arquivo do outro</text>
+
+  <rect x="372" y="66" width="155" height="86" rx="5" fill="#ffd9d9" stroke="#8b0000"/>
+  <text x="449" y="86" font-size="11.5" font-weight="700" text-anchor="middle">3. temp/{ts}/</text>
+  <text x="449" y="104" font-size="9.8" text-anchor="middle" fill="#5a1010">frame_%04d.png</text>
+  <text x="449" y="118" font-size="9.8" font-weight="600" text-anchor="middle" fill="#8b0000">diretório compartilhado</text>
+  <text x="449" y="132" font-size="9.8" text-anchor="middle" fill="#5a1010">entre requisições do</text>
+  <text x="449" y="146" font-size="9.8" text-anchor="middle" fill="#5a1010">mesmo segundo</text>
+
+  <rect x="548" y="66" width="155" height="86" rx="5" fill="#fff6e5" stroke="#b8860b"/>
+  <text x="625" y="86" font-size="11.5" font-weight="700" text-anchor="middle">4. outputs/</text>
+  <text x="625" y="104" font-size="9.8" text-anchor="middle" fill="#7a5a00">frames_{ts}.zip</text>
+  <text x="625" y="118" font-size="9.8" text-anchor="middle" fill="#7a5a00">público e listável</text>
+  <text x="625" y="134" font-size="9.8" font-weight="600" text-anchor="middle" fill="#8b2500">sem dono, sem TTL</text>
+  <text x="625" y="147" font-size="9.8" text-anchor="middle" fill="#7a5a00">cresce sem limite</text>
+
+  <rect x="724" y="66" width="156" height="86" rx="5" fill="#eef3ff" stroke="#2c5aa0"/>
+  <text x="802" y="86" font-size="11.5" font-weight="700" text-anchor="middle">5. Entrega</text>
+  <text x="802" y="104" font-size="9.8" text-anchor="middle" fill="#445">/download/:file</text>
+  <text x="802" y="118" font-size="9.8" text-anchor="middle" fill="#445">/outputs/* (static)</text>
+  <text x="802" y="134" font-size="9.8" font-weight="600" text-anchor="middle" fill="#8b2500">qualquer um baixa</text>
+  <text x="802" y="147" font-size="9.8" text-anchor="middle" fill="#445">qualquer arquivo</text>
+
+  <line x1="175" y1="109" x2="196" y2="109" stroke="#555" stroke-width="1.5" marker-end="url(#a3)"/>
+  <line x1="351" y1="109" x2="372" y2="109" stroke="#555" stroke-width="1.5" marker-end="url(#a3)"/>
+  <line x1="527" y1="109" x2="548" y2="109" stroke="#555" stroke-width="1.5" marker-end="url(#a3)"/>
+  <line x1="703" y1="109" x2="724" y2="109" stroke="#555" stroke-width="1.5" marker-end="url(#a3)"/>
+
+  <text x="20" y="188" font-size="11.5" font-weight="700" fill="#111">Compensação (o que é limpo)</text>
+  <rect x="20" y="198" width="418" height="58" rx="4" fill="#eaf7ea" stroke="#2e7d32"/>
+  <text x="229" y="216" font-size="10.5" font-weight="600" text-anchor="middle" fill="#1b5e20">Caminho de sucesso</text>
+  <text x="229" y="232" font-size="10" text-anchor="middle" fill="#2e5e2e">os.Remove(vídeo original) + defer os.RemoveAll(temp/)</text>
+  <text x="229" y="247" font-size="10" text-anchor="middle" fill="#2e5e2e">o ZIP permanece indefinidamente</text>
+
+  <rect x="460" y="198" width="420" height="58" rx="4" fill="#ffe8e8" stroke="#c0392b"/>
+  <text x="670" y="216" font-size="10.5" font-weight="600" text-anchor="middle" fill="#8b0000">Caminho de falha</text>
+  <text x="670" y="232" font-size="10" text-anchor="middle" fill="#7a1010">o vídeo original NÃO é apagado e acumula lixo</text>
+  <text x="670" y="247" font-size="10" text-anchor="middle" fill="#7a1010">comprovado: 5,5 MB e 68 MB órfãos em /app/uploads</text>
+
+  <text x="20" y="288" font-size="11.5" font-weight="700" fill="#111">Interrupção no meio do job (docker kill, 12 s dentro de um job de 483 frames)</text>
+  <rect x="20" y="298" width="860" height="72" rx="4" fill="#ffd9d9" stroke="#8b0000" stroke-width="1.4"/>
+  <text x="34" y="318" font-size="10.5" fill="#5a1010">O cliente recebe "curl: (52) Empty reply from server": sem código de erro utilizável, sem identificador para reconsultar.</text>
+  <text x="34" y="336" font-size="10.5" fill="#5a1010">Nenhum registro de job existe: não há o que marcar como FAILED, nem como retomar ou reprocessar.</text>
+  <text x="34" y="354" font-size="10.5" fill="#5a1010">Com --rm e sem volume, o ZIP de 65,7 MB já concluído do job anterior desaparece junto com o container.</text>
+  <text x="34" y="366" font-size="10" font-weight="600" fill="#8b0000">Ocorreu de verdade nesta sessão: 5 ZIPs e cerca de 375 MB foram perdidos quando o container foi encerrado.</text>
+
+  <rect x="20" y="384" width="860" height="34" rx="4" fill="#fff9d9" stroke="#b8860b"/>
+  <text x="34" y="404" font-size="10.5" fill="#5a4200">A recuperação também é lenta: o cold start medido foi de 13,26 s até o primeiro HTTP 200, porque a imagem não tem binário e o CMD go run main.go compila a cada inicialização.</text>
+
+  <defs>
+    <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555"/>
+    </marker>
+  </defs>
+</svg><figcaption>Ciclo de vida do dado e comportamento na falha</figcaption></figure>
+<p>A assimetria entre sucesso e falha é relevante. No sucesso, o vídeo original é apagado e o diretório temporário é limpo. Na falha, o <code>os.Remove(videoPath)</code> não é alcançado e <strong>o vídeo permanece indefinidamente</strong> — confirmamos dois órfãos (5,5 MB e 68 MB) após os testes. Nenhum dos caminhos aplica expiração ao ZIP resultante: o diretório de saída acumulou 491,8 MB em cerca de uma hora de uso exploratório.</p>
+<hr/>
+<h1 id="parte-iii-analise-por-dimensao" class="part">Parte III — Análise por dimensão</h1>
+<p>Cada dimensão segue a mesma estrutura: a prática de referência adotada nas fases anteriores do curso, o que foi observado, o que o baseline acerta, onde ele é frágil, o risco resultante e uma estimativa do esforço de correção.</p>
+<h2 id="dimensao-1-estilo-arquitetural-e-separacao-de-responsabilidades">Dimensão 1 — Estilo arquitetural e separação de responsabilidades</h2>
+<p>A classificação formal (monólito de deploy × <em>transaction script</em> interno × não-Clean / não-hexagonal) está na seção 4.1. Aqui o julgamento é de maturidade.</p>
+<p><strong>Referência.</strong> Clean Architecture e monólito modular das Fases 3–4: domínio sem dependências de framework, casos de uso na aplicação, adaptadores na borda, regra de dependência apontando para dentro. Microsserviços só depois que os bounded contexts já existem no monólito.</p>
+<p><strong>Observado.</strong> Unidade de deploy monolítica (adequada). Estrutura interna: <em>transaction script</em> em um arquivo, camadas colapsadas, zero portas. <code>processVideo()</code> depende de <code>os/exec</code> e de <code>fmt</code>. A apresentação (144 linhas de HTML) vive no mesmo pacote que o FFmpeg.</p>
+<p><strong>Pontos positivos.</strong> O monólito de um processo é o tamanho certo para o problema atual — não se critica “falta de microsserviço”. O código é linear e legível; três funções já são coesas. Go + Gin são escolha coerente com um único binário.</p>
+<p><strong>Fragilidades.</strong> Sem módulo interno, sem interface, sem domínio. Trocar FFmpeg, disco ou o estilo síncrono exige editar o núcleo. Não é possível testar o caso de uso sem o sistema de arquivos e o binário <code>ffmpeg</code>. SOLID: responsabilidade única quebrada em <code>handleVideoUpload</code> e <code>processVideo</code>; inversão de dependência inexistente.</p>
+<p><strong>Risco.</strong> Toda evolução arquitetural (fila, worker, auth, persistência) concentra-se no mesmo par de funções onde já estão os defeitos de concorrência. O custo de mudança é estrutural.</p>
+<p><strong>Esforço de correção.</strong> Alto — reestruturação para monólito modular (ou dois processos API/worker) com portas, não um ajuste pontual.</p>
+<p><strong>Maturidade: 1/5</strong> — o ponto vem do deploy monolítico consciente e da legibilidade; não vem de aderência a Clean Architecture ou a camadas.</p>
+<h2 id="dimensao-2-modelo-de-dominio-e-estados">Dimensão 2 — Modelo de domínio e estados</h2>
+<p><strong>Referência.</strong> Agregado com máquina de estados explícita e transições validadas, como <code>ServiceOrder</code> e <code>ServiceOrderStatus</code> na oficina, com histórico e momento de entrada em cada estado.</p>
+<p><strong>Observado.</strong> Não existe entidade que represente o trabalho de processamento. Existem <code>VideoRequest</code> e <code>ProcessingResult</code>, ambos DTOs de transporte — e <code>VideoRequest</code> não é usado em nenhum handler. O "estado" é implícito: se há ZIP no diretório, terminou; se não há, não se sabe distinguir entre nunca enviado, em processamento e falhado.</p>
+<p><strong>Pontos positivos.</strong> <code>ProcessingResult</code> é coerente e bem tipado, transportando <code>success</code>, <code>message</code>, <code>zip_path</code>, <code>frame_count</code> e <code>images</code>. É uma base razoável para um futuro DTO de resposta.</p>
+<p><strong>Fragilidades.</strong> Sem a entidade, não há como responder "qual o estado do meu vídeo", atribuir dono, registrar tentativa, medir duração por etapa ou decidir o que reprocessar. A ausência de <code>UPLOADED → QUEUED → PROCESSING → READY/FAILED</code> não é uma lacuna de recurso: é a razão pela qual as outras dimensões não têm onde se ancorar.</p>
+<p><strong>Risco.</strong> Nenhuma observabilidade de negócio, nenhuma recuperação, nenhuma auditoria são possíveis.</p>
+<p><strong>Esforço de correção.</strong> Médio — modelar a entidade e suas transições é direto; o custo está em propagá-la por persistência e API.</p>
+<p><strong>Maturidade: 0/5</strong></p>
+<h2 id="dimensao-3-integracao-e-comunicacao">Dimensão 3 — Integração e comunicação</h2>
+<p><strong>Referência.</strong> Comunicação assíncrona por mensageria para trabalho de longa duração (RabbitMQ na Saga da Fase 4), com confirmação após conclusão, e REST para consulta de estado.</p>
+<p><strong>Observado.</strong> Um único estilo: HTTP síncrono. A admissão do trabalho e sua execução são a mesma operação. A resposta só chega depois que o FFmpeg e a compactação terminam — medimos 67 s para um vídeo de ~13,6 minutos.</p>
+<p><strong>Pontos positivos.</strong> O contrato de upload é simples e universal (<code>multipart/form-data</code>), sem SDK ou protocolo proprietário. A API responde JSON consistente. Para um arquivo pequeno e um cliente, a experiência é imediata.</p>
+<p><strong>Fragilidades.</strong> Não há <em>buffer</em> entre chegada e execução, portanto não há como absorver picos. Não há limite de concorrência, então a saturação é repassada ao cliente como latência. Não há idempotência: reenviar o mesmo arquivo cria trabalho duplicado com nome novo. Não há confirmação de processamento dissociada da conexão TCP — se a conexão cai, o resultado do trabalho é indeterminado para o cliente.</p>
+<p><strong>Risco.</strong> Acima de ~30 s de processamento, proxies e navegadores começam a encerrar a conexão antes da resposta. Nossa curva mostra que isso ocorre em vídeos acima de ~8 minutos.</p>
+<p><strong>Esforço de correção.</strong> Médio-alto — introduzir broker, worker e protocolo de aceite assíncrono.</p>
+<p><strong>Maturidade: 1/5</strong></p>
+<h2 id="dimensao-4-concorrencia-e-consistencia">Dimensão 4 — Concorrência e consistência</h2>
+<p><strong>Referência.</strong> Identificadores únicos (UUID), isolamento de área de trabalho por execução, idempotência registrada, e — na oficina — controle explícito de processo com <code>saga_process</code>.</p>
+<p><strong>Observado.</strong> Documentado em detalhe na seção 6. A identidade do trabalho tem resolução de um segundo e é usada como nome de diretório e de arquivo. O Gin processa requisições em <em>goroutines</em> paralelas, mas o recurso compartilhado (o diretório) não tem qualquer proteção: nem mutex, nem lock de arquivo, nem sufixo aleatório.</p>
+<p><strong>Pontos positivos.</strong> O paralelismo do runtime funciona: as oito requisições foram atendidas concorrentemente em 18,6 s de tempo total, e o FFmpeg explora múltiplos núcleos. A infraestrutura de concorrência existe — falta apenas o isolamento de recursos.</p>
+<p><strong>Fragilidades.</strong> Três modos de falha distintos foram reproduzidos: quadros de um vídeo entregues no ZIP de outro cliente (perda de confidencialidade e integridade); remoção do diretório durante a escrita do FFmpeg (falha do trabalho alheio); sobrescrita do arquivo de upload quando nome e segundo coincidem. O nome do ZIP também colide, de forma que o último a escrever vence silenciosamente.</p>
+<p><strong>Risco.</strong> <strong>Crítico.</strong> Este é o único achado que produz corrupção silenciosa e cruzamento de dados entre usuários. Em produção, apareceria como reclamação esporádica e praticamente irreprodutível — a pior categoria de defeito.</p>
+<p><strong>Esforço de correção.</strong> Baixo para mitigar (UUID por trabalho isola o diretório e o arquivo), alto para resolver adequadamente (fila com concorrência controlada e propriedade exclusiva de recursos).</p>
+<p><strong>Maturidade: 0/5</strong></p>
+<h2 id="dimensao-5-persistencia-e-durabilidade">Dimensão 5 — Persistência e durabilidade</h2>
+<p><strong>Referência.</strong> PostgreSQL com migrações versionadas (Flyway), propriedade de dados por serviço, e armazenamento de objetos para binários.</p>
+<p><strong>Observado.</strong> Nenhum mecanismo de persistência além do sistema de arquivos do container, sem volume (<code>Mounts=[]</code>) e com <code>--rm</code> no comando documentado. O "esquema de dados" é a convenção de nomes dos três diretórios.</p>
+<p><strong>Pontos positivos.</strong> A escolha de manter os binários fora da memória (streaming para disco e depois para o ZIP) evita estourar RAM em arquivos grandes: o consumo máximo observado foi 607 MB processando 483 quadros. É uma decisão correta que se mantém em qualquer arquitetura futura.</p>
+<p><strong>Fragilidades.</strong> Perda total na destruição do container — observada, não hipotética: o inventário voltou a <code>{"files":null,"total":0}</code> e cerca de 375 MB de ZIPs desapareceram quando o processo foi encerrado. Sem metadados, não é possível saber quem enviou o quê, quando, com que resultado. Sem transação, <code>outputs/</code> pode conter um ZIP cuja origem falhou parcialmente (foi o caso do arquivo contaminado).</p>
+<p><strong>Risco.</strong> Qualquer reinício, atualização, evicção de pod ou reciclagem de nó apaga os resultados dos clientes. Não há backup possível porque não há fonte de verdade.</p>
+<p><strong>Esforço de correção.</strong> Médio — banco para metadados, volume ou armazenamento de objetos para binários.</p>
+<p><strong>Maturidade: 0/5</strong></p>
+<h2 id="dimensao-6-seguranca">Dimensão 6 — Segurança</h2>
+<p><strong>Referência.</strong> Autenticação por usuário e senha com JWT, autorização por escopo de proprietário, validação de conteúdo, segredos externalizados, contêineres sem privilégio.</p>
+<p><strong>Observado.</strong> Consolidado na tabela abaixo. Cada item foi verificado empiricamente, sem credencial alguma.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">ID</th>
+<th style="text-align:left">Achado</th>
+<th style="text-align:left">Severidade</th>
+<th style="text-align:left">Verificação</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">S1</td>
+<td style="text-align:left">Nenhuma autenticação nas seis rotas</td>
+<td style="text-align:left">Crítica</td>
+<td style="text-align:left">Todas as requisições deste relatório foram anônimas</td>
+</tr>
+<tr>
+<td style="text-align:left">S2</td>
+<td style="text-align:left"><code>/api/status</code> expõe o inventário de todos os usuários</td>
+<td style="text-align:left">Crítica</td>
+<td style="text-align:left">HTTP 200, lista completa com nomes e tamanhos</td>
+</tr>
+<tr>
+<td style="text-align:left">S3</td>
+<td style="text-align:left">ZIPs de terceiros baixáveis sem credencial</td>
+<td style="text-align:left">Crítica</td>
+<td style="text-align:left"><code>GET /download/{zip}</code> → 200, 6 055 887 bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">S4</td>
+<td style="text-align:left"><strong>Vídeos originais de terceiros baixáveis</strong></td>
+<td style="text-align:left">Crítica</td>
+<td style="text-align:left"><code>GET /uploads/{arquivo}</code> → 200, 5 727 772 bytes, <code>video/mp4</code></td>
+</tr>
+<tr>
+<td style="text-align:left">S5</td>
+<td style="text-align:left">Vazamento de conteúdo entre requisições pela corrida</td>
+<td style="text-align:left">Crítica</td>
+<td style="text-align:left">12 quadros alheios em ZIP entregue (seção 6)</td>
+</tr>
+<tr>
+<td style="text-align:left">S6</td>
+<td style="text-align:left"><code>Access-Control-Allow-Origin: *</code></td>
+<td style="text-align:left">Alta</td>
+<td style="text-align:left">Cabeçalho observado em <code>GET /</code></td>
+</tr>
+<tr>
+<td style="text-align:left">S7</td>
+<td style="text-align:left">Validação apenas por extensão do nome</td>
+<td style="text-align:left">Alta</td>
+<td style="text-align:left"><code>.txt</code> rejeitado; <code>fake.mp4</code> com 11 bytes de texto aceito e entregue ao FFmpeg</td>
+</tr>
+<tr>
+<td style="text-align:left">S8</td>
+<td style="text-align:left">Sem limite de tamanho, duração ou cota</td>
+<td style="text-align:left">Alta</td>
+<td style="text-align:left">ZIP de 367,7 MB aceito; entrada de 68 MB processada</td>
+</tr>
+<tr>
+<td style="text-align:left">S9</td>
+<td style="text-align:left">FFmpeg sem timeout nem cancelamento</td>
+<td style="text-align:left">Alta</td>
+<td style="text-align:left">Requisição de 67 s observada; <code>context</code> não é usado</td>
+</tr>
+<tr>
+<td style="text-align:left">S10</td>
+<td style="text-align:left"><code>stderr</code> do FFmpeg devolvido ao cliente</td>
+<td style="text-align:left">Média</td>
+<td style="text-align:left">3 888 bytes de saída interna, incluindo caminhos e configuração de build</td>
+</tr>
+<tr>
+<td style="text-align:left">S11</td>
+<td style="text-align:left">Container roda como <strong>root</strong>, sem healthcheck</td>
+<td style="text-align:left">Média</td>
+<td style="text-align:left"><code>User=''</code>, <code>Healthcheck=null</code></td>
+</tr>
+<tr>
+<td style="text-align:left">S12</td>
+<td style="text-align:left">Gin em modo debug e confiando em todos os proxies</td>
+<td style="text-align:left">Média</td>
+<td style="text-align:left">Avisos no log de arranque</td>
+</tr>
+<tr>
+<td style="text-align:left">S13</td>
+<td style="text-align:left">Nome do arquivo do cliente concatenado no caminho</td>
+<td style="text-align:left">Média</td>
+<td style="text-align:left"><code>timestamp + header.Filename</code> sem sanitização</td>
+</tr>
+<tr>
+<td style="text-align:left">S14</td>
+<td style="text-align:left"><code>go run</code> como processo principal (toolchain em produção)</td>
+<td style="text-align:left">Média</td>
+<td style="text-align:left"><code>CMD ["go","run","main.go"]</code></td>
+</tr>
+</tbody></table></div>
+<p>Mapeando ao OWASP API Security Top 10, os achados concentram-se em <strong>API1 (autorização de objeto quebrada)</strong>, <strong>API2 (autenticação quebrada)</strong>, <strong>API3 (exposição excessiva de dados)</strong> e <strong>API4 (ausência de limitação de recursos)</strong>.</p>
+<p><strong>Pontos positivos.</strong> Há uma verificação de extensão explícita, que rejeita <code>.txt</code> corretamente com HTTP 400 em 12 ms. As tentativas de travessia de caminho (<code>/download/../etc/passwd</code>, <code>/outputs/../main.go</code> e variantes codificadas) retornaram 404 — o roteamento do Gin não permitiu escapar dos diretórios servidos. O código não constrói SQL nem executa shell com entrada do usuário: o <code>exec.Command</code> passa argumentos em vetor, sem interpretação por shell, o que evita injeção de comando.</p>
+<p><strong>Fragilidades.</strong> A ausência de identidade é o eixo: sem usuário não há dono, e sem dono todo controle de acesso é impossível por construção. O achado S4 merece ênfase — não é apenas o resultado derivado que vaza, é <strong>o material original enviado pelo cliente</strong>, cujo nome é previsível (<code>{timestamp}_{nome original}</code>) e cujos timestamps são revelados por <code>/api/status</code>.</p>
+<p><strong>Risco.</strong> Qualquer pessoa com acesso de rede ao serviço lê e baixa todo o conteúdo de todos os usuários.</p>
+<p><strong>Esforço de correção.</strong> Médio — autenticação, escopo por proprietário, validação de conteúdo real, limites e endurecimento do container são trabalho conhecido e bem delimitado.</p>
+<p><strong>Maturidade: 0/5</strong></p>
+<h2 id="dimensao-7-confiabilidade-e-resiliencia">Dimensão 7 — Confiabilidade e resiliência</h2>
+<p><strong>Referência.</strong> Timeouts, política de retentativa, fila de mensagens mortas, compensação transacional e recuperação após reinício.</p>
+<p><strong>Observado.</strong> Erros são capturados e devolvidos ao cliente, mas não existe timeout, retentativa, circuit breaker ou recuperação. O teste de interrupção (container encerrado 12 s dentro de um trabalho de 483 quadros) produziu: <code>curl: (52) Empty reply from server</code>, nenhum registro de trabalho, perda do ZIP de 65,7 MB já concluído de um trabalho anterior, e desaparecimento do container.</p>
+<p><strong>Pontos positivos.</strong> O tratamento de erro no código é consistente: cada operação de I/O tem seu <code>if err != nil</code> e produz mensagem específica. A limpeza por <code>defer os.RemoveAll(tempDir)</code> demonstra intenção correta de compensação — o problema é o escopo do recurso, não a ideia. O <code>os.Remove(videoPath)</code> condicionado ao sucesso evita descartar a entrada de um trabalho que falhou.</p>
+<p><strong>Fragilidades.</strong> A compensação de um trabalho interfere em outro (seção 6). Na falha, a entrada não é liberada, acumulando lixo. Não há estado para retomar: um trabalho interrompido simplesmente deixa de existir. O cold start de 13,26 s prolonga qualquer indisponibilidade.</p>
+<p><strong>Risco.</strong> Toda falha é definitiva e silenciosa para o operador; toda reinicialização perde resultados entregues.</p>
+<p><strong>Esforço de correção.</strong> Médio-alto — depende de persistência e fila para ter onde registrar e reprocessar.</p>
+<p><strong>Maturidade: 1/5</strong></p>
+<h2 id="dimensao-8-performance-e-escalabilidade">Dimensão 8 — Performance e escalabilidade</h2>
+<p><strong>Referência.</strong> Escala horizontal por réplicas sem estado, com armazenamento compartilhado e trabalho distribuído por fila.</p>
+<p><strong>Observado.</strong> Duas medições independentes: custo por duração de vídeo e consumo de recursos ao longo do tempo.</p>
+<figure class="diagram"><svg width="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 460" font-family="Segoe UI, Calibri, Arial, sans-serif">
+  <rect width="900" height="460" fill="#ffffff"/>
+  <text x="20" y="24" font-size="14" font-weight="700" fill="#111">Custo de processamento por duração do vídeo (fps=1, PNG, conteúdo real)</text>
+  <text x="20" y="42" font-size="11" fill="#666">Medições sequenciais no container fiapx-baseline, 6 vCPU · fonte: docs/evidence/19-curva-custo.txt e 20-status-curva.json</text>
+
+  <line x1="70" y1="360" x2="860" y2="360" stroke="#333" stroke-width="1.2"/>
+  <line x1="70" y1="70" x2="70" y2="360" stroke="#333" stroke-width="1.2"/>
+  <line x1="860" y1="70" x2="860" y2="360" stroke="#c0392b" stroke-width="1.2"/>
+
+  <line x1="70" y1="288" x2="860" y2="288" stroke="#eee"/>
+  <line x1="70" y1="215" x2="860" y2="215" stroke="#eee"/>
+  <line x1="70" y1="142" x2="860" y2="142" stroke="#eee"/>
+  <line x1="70" y1="70" x2="860" y2="70" stroke="#eee"/>
+
+  <text x="62" y="364" font-size="10" text-anchor="end" fill="#2c5aa0">0</text>
+  <text x="62" y="292" font-size="10" text-anchor="end" fill="#2c5aa0">100</text>
+  <text x="62" y="219" font-size="10" text-anchor="end" fill="#2c5aa0">200</text>
+  <text x="62" y="146" font-size="10" text-anchor="end" fill="#2c5aa0">300</text>
+  <text x="62" y="74" font-size="10" text-anchor="end" fill="#2c5aa0">400</text>
+  <text x="20" y="60" font-size="11" font-weight="600" fill="#2c5aa0">ZIP (MB)</text>
+
+  <text x="868" y="364" font-size="10" fill="#c0392b">0</text>
+  <text x="868" y="292" font-size="10" fill="#c0392b">17,5</text>
+  <text x="868" y="219" font-size="10" fill="#c0392b">35</text>
+  <text x="868" y="146" font-size="10" fill="#c0392b">52,5</text>
+  <text x="868" y="74" font-size="10" fill="#c0392b">70</text>
+  <text x="806" y="60" font-size="11" font-weight="600" fill="#c0392b">resposta (s)</text>
+
+  <text x="81" y="378" font-size="10" text-anchor="middle" fill="#444">12</text>
+  <text x="108" y="392" font-size="10" text-anchor="middle" fill="#444">40</text>
+  <text x="183" y="378" font-size="10" text-anchor="middle" fill="#444">120</text>
+  <text x="296" y="378" font-size="10" text-anchor="middle" fill="#444">240</text>
+  <text x="521" y="378" font-size="10" text-anchor="middle" fill="#444">480</text>
+  <text x="838" y="378" font-size="10" text-anchor="middle" fill="#444">817</text>
+  <text x="465" y="410" font-size="11" font-weight="600" text-anchor="middle" fill="#444">duração do vídeo de entrada (segundos)</text>
+
+  <polyline points="81,326 108,314 183,282 296,234 521,138 838,63" fill="none" stroke="#2c5aa0" stroke-width="2.2"/>
+  <circle cx="81" cy="326" r="4" fill="#2c5aa0"/>
+  <circle cx="108" cy="314" r="4" fill="#2c5aa0"/>
+  <circle cx="183" cy="282" r="4" fill="#2c5aa0"/>
+  <circle cx="296" cy="234" r="4" fill="#2c5aa0"/>
+  <circle cx="521" cy="138" r="4" fill="#2c5aa0"/>
+  <circle cx="838" cy="63" r="5" fill="#ffffff" stroke="#2c5aa0" stroke-width="2.4"/>
+
+  <polyline points="81,326 108,321 183,304 296,277 521,207 838,52" fill="none" stroke="#c0392b" stroke-width="2.2" stroke-dasharray="6 3"/>
+  <circle cx="81" cy="326" r="3.4" fill="#c0392b"/>
+  <circle cx="108" cy="321" r="3.4" fill="#c0392b"/>
+  <circle cx="183" cy="304" r="3.4" fill="#c0392b"/>
+  <circle cx="296" cy="277" r="3.4" fill="#c0392b"/>
+  <circle cx="521" cy="207" r="3.4" fill="#c0392b"/>
+  <circle cx="838" cy="52" r="4.4" fill="#ffffff" stroke="#c0392b" stroke-width="2.2"/>
+
+  <text x="530" y="128" font-size="10" fill="#2c5aa0">265 MB</text>
+  <text x="826" y="80" font-size="10" text-anchor="end" fill="#2c5aa0">368 MB</text>
+  <text x="530" y="200" font-size="10" fill="#c0392b">29,6 s</text>
+  <text x="826" y="104" font-size="10" text-anchor="end" font-weight="600" fill="#c0392b">67 s</text>
+  <text x="826" y="118" font-size="9.5" text-anchor="end" fill="#c0392b">timeout de proxy já excedido</text>
+
+  <line x1="70" y1="304" x2="860" y2="304" stroke="#999" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="76" y="300" font-size="9.5" fill="#777">limite prático de 30 s para requisição HTTP síncrona</text>
+
+  <rect x="70" y="422" width="18" height="3" fill="#2c5aa0"/>
+  <text x="96" y="428" font-size="10.5" fill="#333">tamanho do ZIP entregue</text>
+  <rect x="290" y="422" width="18" height="3" fill="#c0392b"/>
+  <text x="316" y="428" font-size="10.5" fill="#333">tempo até a resposta HTTP</text>
+  <circle cx="560" cy="424" r="4.4" fill="#ffffff" stroke="#555" stroke-width="2"/>
+  <text x="574" y="428" font-size="10.5" fill="#333">ponto medido na sessão anterior (Fase 4.mp4, 817 frames)</text>
+
+  <rect x="92" y="84" width="336" height="88" rx="4" fill="#fafafa" stroke="#bbb"/>
+  <text x="106" y="102" font-size="10.5" font-weight="700" fill="#111">Relações lineares medidas</text>
+  <text x="106" y="119" font-size="10" fill="#333">1 frame por segundo de vídeo (fps=1 fixo no código)</text>
+  <text x="106" y="134" font-size="10" fill="#333">cerca de 0,55 MB de ZIP por segundo de vídeo</text>
+  <text x="106" y="149" font-size="10" fill="#333">cerca de 0,062 s de processamento por frame (6% da duração)</text>
+  <text x="106" y="164" font-size="10" font-weight="600" fill="#8b2500">extrapolação: 1 h de vídeo = 3600 frames = 2 GB = 3,7 min</text>
+</svg><figcaption>Curva de custo por duração do vídeo</figcaption></figure>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Duração</th>
+<th style="text-align:left">Entrada</th>
+<th style="text-align:left">Quadros</th>
+<th style="text-align:left">ZIP</th>
+<th style="text-align:left">Tempo de resposta</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">12 s</td>
+<td style="text-align:left">3,43 MB</td>
+<td style="text-align:left">12</td>
+<td style="text-align:left">6,06 MB</td>
+<td style="text-align:left">0,91 s</td>
+</tr>
+<tr>
+<td style="text-align:left">40 s</td>
+<td style="text-align:left">5,46 MB</td>
+<td style="text-align:left">40</td>
+<td style="text-align:left">21,59 MB</td>
+<td style="text-align:left">2,25 s</td>
+</tr>
+<tr>
+<td style="text-align:left">120 s</td>
+<td style="text-align:left">16,38 MB</td>
+<td style="text-align:left">121</td>
+<td style="text-align:left">65,72 MB</td>
+<td style="text-align:left">6,17 s</td>
+</tr>
+<tr>
+<td style="text-align:left">240 s</td>
+<td style="text-align:left">32,77 MB</td>
+<td style="text-align:left">241</td>
+<td style="text-align:left">131,91 MB</td>
+<td style="text-align:left">12,92 s</td>
+</tr>
+<tr>
+<td style="text-align:left">480 s</td>
+<td style="text-align:left">65,53 MB</td>
+<td style="text-align:left">483</td>
+<td style="text-align:left">265,34 MB</td>
+<td style="text-align:left">29,60 s</td>
+</tr>
+<tr>
+<td style="text-align:left">~817 s</td>
+<td style="text-align:left">—</td>
+<td style="text-align:left">817</td>
+<td style="text-align:left">367,70 MB</td>
+<td style="text-align:left">67,00 s</td>
+</tr>
+</tbody></table></div>
+<p>O comportamento é estritamente linear: <strong>um quadro por segundo de vídeo</strong>, <strong>~0,55 MB de ZIP por segundo de vídeo</strong> e <strong>~0,062 s de processamento por quadro</strong> (cerca de 6% da duração do material). Extrapolando: uma hora de vídeo produz ~3 600 quadros, ~2 GB de ZIP e ~3,7 minutos de processamento.</p>
+<figure class="diagram"><svg width="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" font-family="Segoe UI, Calibri, Arial, sans-serif">
+  <rect width="900" height="400" fill="#ffffff"/>
+  <text x="20" y="24" font-size="14" font-weight="700" fill="#111">CPU do container durante 5 processamentos sequenciais (amostragem docker stats, ~2 s)</text>
+  <text x="20" y="42" font-size="11" fill="#666">13:20:35 a 13:21:36 · 6 vCPU = 600% · fonte: docs/evidence/19-stats-curva.csv</text>
+
+  <line x1="66" y1="300" x2="878" y2="300" stroke="#333" stroke-width="1.2"/>
+  <line x1="66" y1="60" x2="66" y2="300" stroke="#333" stroke-width="1.2"/>
+
+  <line x1="66" y1="60" x2="878" y2="60" stroke="#8b0000" stroke-width="1.4" stroke-dasharray="6 3"/>
+  <text x="72" y="56" font-size="10" font-weight="700" fill="#8b0000">600%: saturação total da máquina (6 vCPU)</text>
+
+  <line x1="66" y1="260" x2="878" y2="260" stroke="#2e7d32" stroke-width="1.1" stroke-dasharray="4 3"/>
+  <text x="72" y="256" font-size="10" fill="#2e7d32">100%: um núcleo (fase de compactação do ZIP)</text>
+
+  <text x="58" y="304" font-size="10" text-anchor="end" fill="#444">0%</text>
+  <text x="58" y="264" font-size="10" text-anchor="end" fill="#444">100</text>
+  <text x="58" y="224" font-size="10" text-anchor="end" fill="#444">200</text>
+  <text x="58" y="184" font-size="10" text-anchor="end" fill="#444">300</text>
+  <text x="58" y="144" font-size="10" text-anchor="end" fill="#444">400</text>
+  <text x="58" y="104" font-size="10" text-anchor="end" fill="#444">500</text>
+  <text x="58" y="64" font-size="10" text-anchor="end" fill="#444">600</text>
+
+  <g fill="#c0392b">
+    <rect x="124" y="295" width="18" height="5"/>
+    <rect x="150" y="117" width="18" height="183"/>
+    <rect x="202" y="110" width="18" height="190"/>
+    <rect x="228" y="110" width="18" height="190"/>
+    <rect x="254" y="260" width="18" height="40" fill="#2e7d32"/>
+    <rect x="306" y="112" width="18" height="188"/>
+    <rect x="332" y="118" width="18" height="182"/>
+    <rect x="358" y="112" width="18" height="188"/>
+    <rect x="384" y="114" width="18" height="186"/>
+    <rect x="410" y="236" width="18" height="64"/>
+    <rect x="436" y="260" width="18" height="40" fill="#2e7d32"/>
+    <rect x="462" y="298" width="18" height="2"/>
+    <rect x="488" y="125" width="18" height="175"/>
+    <rect x="514" y="123" width="18" height="177"/>
+    <rect x="540" y="118" width="18" height="182"/>
+    <rect x="566" y="118" width="18" height="182"/>
+    <rect x="592" y="110" width="18" height="190"/>
+    <rect x="618" y="123" width="18" height="177"/>
+    <rect x="644" y="124" width="18" height="176"/>
+    <rect x="670" y="114" width="18" height="186"/>
+    <rect x="696" y="116" width="18" height="184"/>
+    <rect x="722" y="117" width="18" height="183"/>
+    <rect x="748" y="166" width="18" height="134"/>
+    <rect x="774" y="260" width="18" height="40" fill="#2e7d32"/>
+    <rect x="800" y="260" width="18" height="40" fill="#2e7d32"/>
+    <rect x="826" y="260" width="18" height="40" fill="#2e7d32"/>
+    <rect x="852" y="260" width="18" height="40" fill="#2e7d32"/>
+  </g>
+
+  <text x="592" y="104" font-size="10" font-weight="700" text-anchor="middle" fill="#8b0000">475,66%</text>
+  <line x1="592" y1="106" x2="592" y2="110" stroke="#8b0000"/>
+
+  <text x="160" y="322" font-size="9.5" text-anchor="middle" fill="#666">12 s</text>
+  <text x="215" y="322" font-size="9.5" text-anchor="middle" fill="#666">40 s</text>
+  <text x="345" y="322" font-size="9.5" text-anchor="middle" fill="#666">120 s</text>
+  <text x="600" y="322" font-size="9.5" text-anchor="middle" fill="#666">480 s (483 frames)</text>
+  <text x="825" y="322" font-size="9.5" text-anchor="middle" fill="#666">ZIP</text>
+
+  <rect x="66" y="336" width="812" height="52" rx="4" fill="#fafafa" stroke="#bbb"/>
+  <text x="80" y="354" font-size="10.5" font-weight="700" fill="#333">Um único upload consome cerca de 79% da máquina.</text>
+  <text x="80" y="368" font-size="10.5" fill="#333">O FFmpeg abre até 29 threads (os PIDs do container sobem de 24 para 53) e a memória vai de 291 MB para 607 MB num só job. Depois do FFmpeg, a compactação fica presa em ~100%, um núcleo, porque archive/zip é sequencial.</text>
+  <text x="80" y="383" font-size="10" fill="#666">Consequência: mesmo sem a corrida de diretório, não existe folga de CPU para processar dois vídeos longos ao mesmo tempo nesta instância.</text>
+
+  <rect x="700" y="42" width="12" height="10" fill="#c0392b"/>
+  <text x="718" y="51" font-size="10" fill="#333">FFmpeg (multithread)</text>
+  <rect x="830" y="42" width="12" height="10" fill="#2e7d32"/>
+  <text x="848" y="51" font-size="10" fill="#333">ZIP</text>
+</svg><figcaption>CPU do container durante cinco processamentos</figcaption></figure>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Métrica</th>
+<th style="text-align:left">Repouso</th>
+<th style="text-align:left">Durante processamento</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">CPU</td>
+<td style="text-align:left">0,00%</td>
+<td style="text-align:left"><strong>475,66%</strong> de 600% (~79% do host)</td>
+</tr>
+<tr>
+<td style="text-align:left">Memória</td>
+<td style="text-align:left">202,3 MB</td>
+<td style="text-align:left">607,2 MB</td>
+</tr>
+<tr>
+<td style="text-align:left">PIDs</td>
+<td style="text-align:left">19</td>
+<td style="text-align:left">53</td>
+</tr>
+</tbody></table></div>
+<p>A curva revela duas fases distintas: o FFmpeg satura múltiplos núcleos (até 29 threads), e a compactação subsequente fica presa em ~100% — um único núcleo, porque <code>archive/zip</code> é sequencial.</p>
+<p><strong>Pontos positivos.</strong> O desempenho de um trabalho isolado é bom e previsível. O FFmpeg é usado de forma eficiente, explorando paralelismo interno sem configuração adicional. A linearidade torna a capacidade fácil de projetar. O uso de memória é modesto e não cresce com o tamanho do arquivo de forma perigosa.</p>
+<p><strong>Fragilidades.</strong> Não existe folga de CPU: um trabalho já consome 79% da máquina, de modo que "processar vários vídeos ao mesmo tempo" nesta instância significa apenas redistribuir o mesmo recurso, com a degradação de 4x que medimos. A escala horizontal é inviável por três razões acumuladas — o disco é local, os identificadores não são globalmente únicos e não há coordenação de trabalho. A compactação single-thread desperdiça capacidade justamente quando o FFmpeg liberou os núcleos. Aplicar Deflate sobre PNG (já comprimido) gasta CPU para ganho marginal.</p>
+<p><strong>Risco.</strong> A capacidade máxima é de aproximadamente um vídeo longo por instância; picos degradam todos os clientes simultaneamente; o volume de saída cresce sem limite (491,8 MB em uma hora de uso exploratório).</p>
+<p><strong>Esforço de correção.</strong> Médio — extrair o processamento para workers escaláveis, com armazenamento compartilhado e concorrência controlada.</p>
+<p><strong>Maturidade: 1/5</strong></p>
+<h2 id="dimensao-9-observabilidade">Dimensão 9 — Observabilidade</h2>
+<p><strong>Referência.</strong> Métricas técnicas e de negócio, logs estruturados com identificador de correlação, rastreamento distribuído, alertas e verificação de saúde (Fase 3, com New Relic).</p>
+<p><strong>Observado.</strong> O log de acesso do Gin (método, status, latência, IP) e três <code>fmt.Printf</code> no fluxo de processamento. Nada além disso.</p>
+<p><strong>Pontos positivos.</strong> O log de acesso do Gin é, por si só, útil: foi a partir dele que identificamos a requisição de 67 s. As mensagens de progresso informam quantidade de quadros e criação do ZIP, o que ajuda no diagnóstico manual. A latência registrada por requisição é uma métrica técnica legítima e já disponível.</p>
+<p><strong>Fragilidades.</strong> Não existe identificador de correlação — com requisições concorrentes compartilhando o mesmo timestamp, é impossível reconstruir qual linha de log pertence a qual cliente (as mensagens da rajada são indistinguíveis entre si). Não há métrica de negócio: vídeos processados, taxa de falha, duração por etapa, tamanho médio. Não há endpoint de saúde, o que impede <em>probes</em> de liveness/readiness. Não há alerta possível: a falha de um trabalho não produz nenhum sinal fora do corpo da resposta HTTP.</p>
+<p><strong>Risco.</strong> Falhas e corrupção passam despercebidas — exatamente o que ocorreu com o ZIP contaminado, que do ponto de vista do servidor foi um sucesso.</p>
+<p><strong>Esforço de correção.</strong> Baixo-médio — log estruturado com correlação, métricas e health são incrementais.</p>
+<p><strong>Maturidade: 1/5</strong></p>
+<h2 id="dimensao-10-testabilidade-e-qualidade">Dimensão 10 — Testabilidade e qualidade</h2>
+<p><strong>Referência.</strong> Testes unitários e de integração com cobertura mínima aferida (JaCoCo ≥ 80% na oficina), BDD para fluxos de negócio, análise estática com <em>quality gate</em>.</p>
+<p><strong>Observado.</strong> Nenhum arquivo <code>*_test.go</code>. Nenhuma configuração de linter, análise estática ou cobertura. Nenhuma coleção de testes de API.</p>
+<p><strong>Pontos positivos.</strong> Três funções são testáveis como estão, sem refatoração: <code>isValidVideoFile()</code> é uma função pura, e <code>createZipFile()</code>/<code>addFileToZip()</code> operam sobre caminhos passados como parâmetro, o que permite usar diretórios temporários. Há, portanto, um ponto de partida imediato para os primeiros testes.</p>
+<p><strong>Fragilidades.</strong> O problema não é a ausência de testes, é a <strong>resistência ao teste</strong>. <code>processVideo()</code> invoca <code>exec.Command("ffmpeg")</code> diretamente: testá-la exige FFmpeg instalado, um vídeo real e tolerância a variações de codificação. <code>handleVideoUpload()</code> mistura HTTP e disco, exigindo servidor e sistema de arquivos reais. Sem interface para o processador ou para o armazenamento, não há ponto de injeção — nenhum dublê é possível.</p>
+<p>O impacto é concreto e mensurável neste relatório: <strong>o defeito de concorrência da seção 6 é trivialmente detectável por um teste</strong> que dispare duas execuções no mesmo segundo e verifique a contagem de quadros. Ele sobreviveu porque não existe nenhum teste e porque o desenho não permite escrevê-lo com facilidade.</p>
+<p><strong>Risco.</strong> Nenhuma regressão é detectável antes de produção; a corretude depende de inspeção manual.</p>
+<p><strong>Esforço de correção.</strong> Alto — requer as fronteiras da Dimensão 1 para ser feito adequadamente.</p>
+<p><strong>Maturidade: 0/5</strong></p>
+<h2 id="dimensao-11-engenharia-de-entrega">Dimensão 11 — Engenharia de entrega</h2>
+<p><strong>Referência.</strong> Build multi-stage com imagem de runtime enxuta, configuração por ambiente (12-factor), pipeline de integração contínua com testes e publicação de imagem versionada.</p>
+<p><strong>Observado.</strong> Um <code>Dockerfile</code> de estágio único, autodeclarado como contraexemplo:</p>
+<div class="code-block"><div class="code-ref">projeto-fiapx/Dockerfile &middot; linhas 1-2</div><pre><code># DOCKERFILE SIMPLES (sem boas práticas - propositalmente!)
+# Este é um exemplo de como NÃO fazer um Dockerfile</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Aspecto</th>
+<th style="text-align:left">Situação</th>
+<th style="text-align:left">Consequência medida</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Base</td>
+<td style="text-align:left"><code>golang:1.21-alpine</code> (SDK)</td>
+<td style="text-align:left">256 MB só de toolchain na imagem final</td>
+</tr>
+<tr>
+<td style="text-align:left">Estágios</td>
+<td style="text-align:left">1</td>
+<td style="text-align:left">852 MB totais</td>
+</tr>
+<tr>
+<td style="text-align:left">Dependências</td>
+<td style="text-align:left"><code>go mod tidy</code> no build</td>
+<td style="text-align:left">camada de 237 MB; sem cache eficiente</td>
+</tr>
+<tr>
+<td style="text-align:left">Processo principal</td>
+<td style="text-align:left"><code>go run main.go</code></td>
+<td style="text-align:left">compila a cada boot → cold start de 13,26 s</td>
+</tr>
+<tr>
+<td style="text-align:left">Usuário</td>
+<td style="text-align:left">root</td>
+<td style="text-align:left">S11</td>
+</tr>
+<tr>
+<td style="text-align:left">Healthcheck</td>
+<td style="text-align:left">ausente</td>
+<td style="text-align:left">impede probes de orquestrador</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>.dockerignore</code></td>
+<td style="text-align:left">ausente</td>
+<td style="text-align:left"><code>__MACOSX</code> e artefatos locais entram na imagem</td>
+</tr>
+<tr>
+<td style="text-align:left">Configuração</td>
+<td style="text-align:left">nenhuma variável de ambiente</td>
+<td style="text-align:left">porta, fps e caminhos exigem recompilar</td>
+</tr>
+<tr>
+<td style="text-align:left">CI/CD</td>
+<td style="text-align:left">inexistente</td>
+<td style="text-align:left">build e execução manuais</td>
+</tr>
+</tbody></table></div>
+<p><strong>Pontos positivos.</strong> O build é <strong>reprodutível e autocontido</strong>: um <code>docker build</code> seguido de <code>docker run</code> sobe o sistema com FFmpeg na versão correta, sem instalar nada no host. Isso tem valor real — foi o que permitiu conduzir toda esta análise sem Go nem FFmpeg instalados na máquina. A imagem é fixada em versão de base (<code>golang:1.21-alpine</code>) e o <code>go.sum</code> garante integridade das 36 dependências do grafo.</p>
+<p><strong>Fragilidades.</strong> A imagem é ~50x maior do que um binário Go estático com FFmpeg exigiria, o que encarece registro, transferência e tempo de <em>pull</em> em escala. O <code>go run</code> mantém o compilador no ambiente de execução — ampliando a superfície de ataque e tornando o arranque lento, o que é especialmente ruim para autoescala e para recuperação de falha. A ausência de configuração externalizada viola diretamente o princípio de configuração do 12-factor: não há como apontar para outro armazenamento ou mudar a taxa de quadros sem alterar código.</p>
+<p><strong>Risco.</strong> Implantação lenta, recuperação lenta, custo de infraestrutura desnecessário e impossibilidade de promover o mesmo artefato entre ambientes com configurações distintas.</p>
+<p><strong>Esforço de correção.</strong> Baixo — multi-stage com <code>distroless</code>/<code>alpine</code>, binário compilado, usuário não-root, healthcheck e leitura de variáveis de ambiente são mudanças pontuais de alto retorno.</p>
+<p><strong>Maturidade: 1/5</strong></p>
+<h2 id="dimensao-12-contrato-de-api">Dimensão 12 — Contrato de API</h2>
+<p><strong>Referência.</strong> Semântica HTTP correta, contrato documentado (OpenAPI/Swagger), versionamento e coleção de testes (Postman) — todos presentes nas fases anteriores.</p>
+<p><strong>Observado.</strong> Quatro rotas funcionais mais duas estáticas, respostas em JSON com estrutura estável.</p>
+<p><strong>Pontos positivos.</strong> O formato de resposta é consistente e autoexplicativo: <code>success</code>, <code>message</code> e, no sucesso, <code>zip_path</code>, <code>frame_count</code> e <code>images</code>. O erro de validação de entrada usa corretamente <strong>HTTP 400</strong>, e o arquivo inexistente em <code>/download/:filename</code> usa corretamente <strong>HTTP 404</strong>. Os cabeçalhos de download são apropriados (<code>Content-Disposition: attachment</code>, <code>Content-Type: application/zip</code>). O <code>Content-Type</code> do vídeo servido estaticamente também é correto (<code>video/mp4</code>).</p>
+<p><strong>Fragilidades.</strong> A falha de processamento retorna <strong>HTTP 200 com <code>success: false</code></strong> — comprovado em todos os cenários de erro da rajada e no <code>fake.mp4</code>. Um cliente que verifique apenas o código de status conclui que o trabalho deu certo. Esse é o mecanismo pelo qual a corrida da seção 6 permanece invisível. O <code>stderr</code> completo do FFmpeg no campo <code>message</code> (3 888 bytes) mistura diagnóstico interno com contrato público. Não existe OpenAPI, versionamento (<code>/v1</code>) nem paginação em <code>/api/status</code>, que devolve a lista inteira. O DTO <code>VideoRequest</code> está declarado mas não é usado por nenhum handler — código morto no contrato.</p>
+<p><strong>Risco.</strong> Integrações construídas sobre esta API tratarão falhas como sucesso.</p>
+<p><strong>Esforço de correção.</strong> Baixo — mapear erros para 4xx/5xx, sanitizar mensagens e publicar contrato.</p>
+<p><strong>Maturidade: 2/5</strong></p>
+<h2 id="dimensao-13-manutenibilidade-e-evolutividade">Dimensão 13 — Manutenibilidade e evolutividade</h2>
+<p><strong>Referência.</strong> Módulos com fronteiras claras, front-end desacoplado, dívida técnica registrada e decisões documentadas em ADR/RFC.</p>
+<p><strong>Observado.</strong> 437 linhas legíveis, mas com 33% dedicadas a HTML/CSS/JavaScript dentro de uma string Go. Nenhum README, documentação de arquitetura, ADR ou registro de decisão acompanha o projeto.</p>
+<p><strong>Pontos positivos.</strong> O tamanho reduzido é uma vantagem genuína: o sistema inteiro é auditável em uma sessão, sem ferramenta de navegação de código — foi o que permitiu produzir este diagnóstico com precisão. Os nomes de função descrevem intenção. O comentário autodepreciativo no <code>Dockerfile</code> demonstra que as limitações são conscientes e intencionais para o contexto de demonstração, o que é preferível a dívida oculta.</p>
+<p><strong>Fragilidades.</strong> Alterar o CSS de um botão exige recompilar e reimplantar o serviço que executa o FFmpeg. O front-end não tem build, lint, minificação ou versionamento independente. Os <em>hotspots</em> estão concentrados: <code>processVideo()</code> e <code>handleVideoUpload()</code> acumulam a maior parte da complexidade e a totalidade dos defeitos observados, e qualquer evolução passa por elas. A ausência de configuração externa significa que cada ambiente exige um binário diferente.</p>
+<p><strong>Risco.</strong> O custo de cada mudança futura é desproporcional ao seu tamanho, e a falta de fronteiras faz com que correções em uma dimensão exijam tocar código de outra.</p>
+<p><strong>Esforço de correção.</strong> Médio — separar a interface e externalizar configuração são passos independentes e de baixo risco.</p>
+<p><strong>Maturidade: 1/5</strong></p>
+<hr/>
+<h1 id="parte-iv-consolidacao" class="part">Parte IV — Consolidação</h1>
+<h2 id="14-pontos-fortes-do-baseline">14. Pontos fortes do baseline</h2>
+<p>Esta seção não é cortesia: são decisões e propriedades que devem ser <strong>preservadas</strong> em qualquer evolução, e que reduzem o esforço futuro.</p>
+<p><strong>A escolha tecnológica é adequada ao problema.</strong> Go oferece concorrência nativa e binário único; Gin é leve e suficiente para a superfície necessária; FFmpeg é a ferramenta correta para extração de quadros e foi invocado com os parâmetros apropriados (<code>-vf fps=1</code>, <code>-y</code>). Nada aqui precisa ser trocado por razões técnicas.</p>
+<p><strong>O empacotamento é reprodutível.</strong> <code>docker build</code> seguido de <code>docker run</code> entrega o sistema funcionando, com a versão exata do FFmpeg, sem instalar dependências no host. Toda esta análise foi conduzida sem Go nem FFmpeg na máquina — o valor prático disso é considerável.</p>
+<p><strong>O processamento evita carregar os dados em memória.</strong> Vídeo e quadros transitam por disco; o pico de memória em 483 quadros foi de 607 MB. É a decisão correta e permanece válida em qualquer arquitetura futura.</p>
+<p><strong>A invocação de processo externo é segura contra injeção.</strong> <code>exec.Command</code> recebe argumentos em vetor, sem interpretação por shell. Não há concatenação de entrada do usuário em linha de comando.</p>
+<p><strong>O tratamento de erro é disciplinado no nível da função.</strong> Cada operação de I/O verifica seu erro e produz mensagem específica. A intenção de compensação existe (<code>defer os.RemoveAll</code>, <code>os.Remove</code> condicionado ao sucesso) — o que falta é escopo de recurso, não cuidado.</p>
+<p><strong>Existem funções prontas para reuso e teste.</strong> <code>isValidVideoFile()</code>, <code>createZipFile()</code> e <code>addFileToZip()</code> são coesas e podem ser aproveitadas praticamente como estão.</p>
+<p><strong>Há proteções pontuais funcionando.</strong> A validação de extensão rejeita corretamente arquivos não suportados; as tentativas de travessia de caminho falharam; os códigos 400 e 404 são usados adequadamente nos casos em que aparecem.</p>
+<p><strong>As limitações são intencionais e declaradas.</strong> O <code>Dockerfile</code> avisa explicitamente que não segue boas práticas. Um protótipo honesto sobre seu escopo é um ponto de partida melhor do que um sistema que aparenta maturidade que não tem.</p>
+<p><strong>O tamanho é uma vantagem.</strong> 437 linhas auditáveis integralmente significam que a evolução pode ser feita com entendimento completo do comportamento atual — situação rara.</p>
+<h2 id="15-matriz-de-risco">15. Matriz de risco</h2>
+<p>Severidade considera impacto sobre confidencialidade, integridade e disponibilidade. Probabilidade considera a chance de manifestação em uso real com múltiplos usuários.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">#</th>
+<th style="text-align:left">Risco</th>
+<th style="text-align:left">Dim.</th>
+<th style="text-align:left">Severidade</th>
+<th style="text-align:left">Probabilidade</th>
+<th style="text-align:left">Evidência</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">R1</td>
+<td style="text-align:left">Quadros de um cliente entregues no ZIP de outro</td>
+<td style="text-align:left">4</td>
+<td style="text-align:left"><strong>Crítica</strong></td>
+<td style="text-align:left">Alta sob concorrência</td>
+<td style="text-align:left"><code>18-zip-contaminacao.txt</code>, <code>PROVA-zip-contaminado-24frames.zip</code></td>
+</tr>
+<tr>
+<td style="text-align:left">R2</td>
+<td style="text-align:left">Qualquer pessoa lista e baixa artefatos de todos</td>
+<td style="text-align:left">6</td>
+<td style="text-align:left"><strong>Crítica</strong></td>
+<td style="text-align:left">Certa</td>
+<td style="text-align:left"><code>01-status.json</code>, <code>03-download.txt</code>, <code>04-static-outputs.txt</code></td>
+</tr>
+<tr>
+<td style="text-align:left">R3</td>
+<td style="text-align:left">Vídeo original de terceiros baixável sem credencial</td>
+<td style="text-align:left">6</td>
+<td style="text-align:left"><strong>Crítica</strong></td>
+<td style="text-align:left">Certa</td>
+<td style="text-align:left"><code>26-uploads-expostos.txt</code> (HTTP 200, 5,7 MB)</td>
+</tr>
+<tr>
+<td style="text-align:left">R4</td>
+<td style="text-align:left">Perda total de resultados ao reiniciar o container</td>
+<td style="text-align:left">5</td>
+<td style="text-align:left"><strong>Crítica</strong></td>
+<td style="text-align:left">Certa</td>
+<td style="text-align:left"><code>16-status-inicial-pos-perda.json</code>, <code>21-teste-interrupcao.txt</code></td>
+</tr>
+<tr>
+<td style="text-align:left">R5</td>
+<td style="text-align:left">Falha de processamento reportada como HTTP 200</td>
+<td style="text-align:left">12</td>
+<td style="text-align:left">Alta</td>
+<td style="text-align:left">Certa</td>
+<td style="text-align:left"><code>14-burst-8.txt</code>, <code>07-fake-mp4-curl.txt</code></td>
+</tr>
+<tr>
+<td style="text-align:left">R6</td>
+<td style="text-align:left">Perda de trabalho sob rajada (62,5% medido)</td>
+<td style="text-align:left">4</td>
+<td style="text-align:left">Alta</td>
+<td style="text-align:left">Alta</td>
+<td style="text-align:left"><code>14-burst-8.txt</code></td>
+</tr>
+<tr>
+<td style="text-align:left">R7</td>
+<td style="text-align:left">Trabalho interrompido é irrecuperável</td>
+<td style="text-align:left">7</td>
+<td style="text-align:left">Alta</td>
+<td style="text-align:left">Média</td>
+<td style="text-align:left"><code>21-teste-interrupcao.txt</code></td>
+</tr>
+<tr>
+<td style="text-align:left">R8</td>
+<td style="text-align:left">Esgotamento de disco por acúmulo sem cota</td>
+<td style="text-align:left">5, 8</td>
+<td style="text-align:left">Alta</td>
+<td style="text-align:left">Alta</td>
+<td style="text-align:left"><code>23-disco-final.txt</code> (491,8 MB/hora de uso)</td>
+</tr>
+<tr>
+<td style="text-align:left">R9</td>
+<td style="text-align:left">Saturação de CPU por requisição única</td>
+<td style="text-align:left">8</td>
+<td style="text-align:left">Alta</td>
+<td style="text-align:left">Alta</td>
+<td style="text-align:left"><code>19-stats-curva.csv</code> (475,66%)</td>
+</tr>
+<tr>
+<td style="text-align:left">R10</td>
+<td style="text-align:left">Timeout de cliente em vídeos longos</td>
+<td style="text-align:left">3</td>
+<td style="text-align:left">Alta</td>
+<td style="text-align:left">Alta</td>
+<td style="text-align:left">curva: 67 s para ~13,6 min</td>
+</tr>
+<tr>
+<td style="text-align:left">R11</td>
+<td style="text-align:left">Conteúdo malicioso entregue ao FFmpeg</td>
+<td style="text-align:left">6</td>
+<td style="text-align:left">Média</td>
+<td style="text-align:left">Média</td>
+<td style="text-align:left"><code>07-fake-mp4-curl.txt</code></td>
+</tr>
+<tr>
+<td style="text-align:left">R12</td>
+<td style="text-align:left">Vazamento de diagnóstico interno ao cliente</td>
+<td style="text-align:left">6, 12</td>
+<td style="text-align:left">Média</td>
+<td style="text-align:left">Certa</td>
+<td style="text-align:left">3 888 bytes de <code>stderr</code> na resposta</td>
+</tr>
+<tr>
+<td style="text-align:left">R13</td>
+<td style="text-align:left">Container root sem healthcheck</td>
+<td style="text-align:left">6, 11</td>
+<td style="text-align:left">Média</td>
+<td style="text-align:left">Certa</td>
+<td style="text-align:left"><code>10-image-config.txt</code></td>
+</tr>
+<tr>
+<td style="text-align:left">R14</td>
+<td style="text-align:left">Regressão indetectável por ausência de testes</td>
+<td style="text-align:left">10</td>
+<td style="text-align:left">Média</td>
+<td style="text-align:left">Certa</td>
+<td style="text-align:left">nenhum <code>*_test.go</code></td>
+</tr>
+<tr>
+<td style="text-align:left">R15</td>
+<td style="text-align:left">Recuperação lenta (cold start 13,26 s)</td>
+<td style="text-align:left">11</td>
+<td style="text-align:left">Baixa</td>
+<td style="text-align:left">Certa</td>
+<td style="text-align:left"><code>22-cold-start.txt</code></td>
+</tr>
+</tbody></table></div>
+<p>Quatro riscos críticos, dos quais três são certos (não dependem de condição) e um é altamente provável sob uso concorrente.</p>
+<h2 id="16-maturidade-consolidada">16. Maturidade consolidada</h2>
+<figure class="diagram"><svg width="100%" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="Segoe UI, Calibri, Arial, sans-serif">
+  <rect width="900" height="520" fill="#ffffff"/>
+  <text x="20" y="24" font-size="14" font-weight="700" fill="#111">Maturidade por dimensão de engenharia: baseline FIAP X</text>
+  <text x="20" y="42" font-size="11" fill="#666">Escala 0 (inexistente) a 5 (nível praticado nas Fases 3 e 4 da oficina). Avaliação baseada em código lido e comportamento medido.</text>
+
+  <text x="330" y="66" font-size="10" fill="#888">0</text>
+  <text x="430" y="66" font-size="10" fill="#888">1</text>
+  <text x="530" y="66" font-size="10" fill="#888">2</text>
+  <text x="630" y="66" font-size="10" fill="#888">3</text>
+  <text x="730" y="66" font-size="10" fill="#888">4</text>
+  <text x="826" y="66" font-size="10" fill="#888">5</text>
+  <line x1="326" y1="72" x2="326" y2="472" stroke="#ddd"/>
+  <line x1="426" y1="72" x2="426" y2="472" stroke="#eee"/>
+  <line x1="526" y1="72" x2="526" y2="472" stroke="#eee"/>
+  <line x1="626" y1="72" x2="626" y2="472" stroke="#eee"/>
+  <line x1="726" y1="72" x2="726" y2="472" stroke="#eee"/>
+  <line x1="826" y1="72" x2="826" y2="472" stroke="#ddd"/>
+
+  <g font-size="11" fill="#222">
+    <text x="20" y="90">D1 · Estilo arquitetural e separação</text>
+    <rect x="326" y="80" width="100" height="14" fill="#e06c5a"/>
+    <text x="436" y="90" font-size="10" fill="#666">1 · monólito de deploy; interior = transaction script</text>
+
+    <text x="20" y="120">D2 · Modelo de domínio e estados</text>
+    <rect x="326" y="110" width="4" height="14" fill="#c0392b"/>
+    <text x="436" y="120" font-size="10" fill="#666">0 · não existe a entidade "job"</text>
+
+    <text x="20" y="150">D3 · Integração e comunicação</text>
+    <rect x="326" y="140" width="100" height="14" fill="#e06c5a"/>
+    <text x="436" y="150" font-size="10" fill="#666">1 · só HTTP síncrono, sem broker nem backpressure</text>
+
+    <text x="20" y="180">D4 · Concorrência e consistência</text>
+    <rect x="326" y="170" width="4" height="14" fill="#c0392b"/>
+    <text x="436" y="180" font-size="10" fill="#666">0 · corrompe dados sob carga (vazamento entre requisições)</text>
+
+    <text x="20" y="210">D5 · Persistência e durabilidade</text>
+    <rect x="326" y="200" width="4" height="14" fill="#c0392b"/>
+    <text x="436" y="210" font-size="10" fill="#666">0 · filesystem efêmero, sem SGBD</text>
+
+    <text x="20" y="240">D6 · Segurança</text>
+    <rect x="326" y="230" width="4" height="14" fill="#c0392b"/>
+    <text x="436" y="240" font-size="10" fill="#666">0 · sem AuthN/AuthZ; artefatos de terceiros acessíveis</text>
+
+    <text x="20" y="270">D7 · Confiabilidade e resiliência</text>
+    <rect x="326" y="260" width="100" height="14" fill="#e06c5a"/>
+    <text x="436" y="270" font-size="10" fill="#666">1 · erros capturados, mas sem retry, timeout ou recuperação</text>
+
+    <text x="20" y="300">D8 · Performance e escalabilidade</text>
+    <rect x="326" y="290" width="100" height="14" fill="#e06c5a"/>
+    <text x="436" y="300" font-size="10" fill="#666">1 · funciona sozinho; sem folga de CPU nem escala horizontal</text>
+
+    <text x="20" y="330">D9 · Observabilidade</text>
+    <rect x="326" y="320" width="100" height="14" fill="#e06c5a"/>
+    <text x="436" y="330" font-size="10" fill="#666">1 · log de acesso do Gin; nenhum sinal de negócio</text>
+
+    <text x="20" y="360">D10 · Testabilidade e qualidade</text>
+    <rect x="326" y="350" width="4" height="14" fill="#c0392b"/>
+    <text x="436" y="360" font-size="10" fill="#666">0 · nenhum teste e o desenho impede testar</text>
+
+    <text x="20" y="390">D11 · Engenharia de entrega</text>
+    <rect x="326" y="380" width="100" height="14" fill="#e06c5a"/>
+    <text x="436" y="390" font-size="10" fill="#666">1 · build reprodutível, mas go run e imagem de 852 MB</text>
+
+    <text x="20" y="420">D12 · Contrato de API</text>
+    <rect x="326" y="410" width="200" height="14" fill="#e8a33d"/>
+    <text x="536" y="420" font-size="10" fill="#666">2 · JSON consistente; semântica HTTP incorreta, sem OpenAPI</text>
+
+    <text x="20" y="450">D13 · Manutenibilidade</text>
+    <rect x="326" y="440" width="100" height="14" fill="#e06c5a"/>
+    <text x="436" y="450" font-size="10" fill="#666">1 · 437 linhas legíveis, mas front e back acoplados</text>
+  </g>
+
+  <rect x="20" y="486" width="860" height="26" rx="4" fill="#fafafa" stroke="#bbb"/>
+  <text x="34" y="503" font-size="10.5" fill="#333">Média 0,7 de 5. As quatro dimensões em zero (domínio, concorrência, persistência, segurança) são as que impedem qualquer uso multiusuário: não são questão de refinamento.</text>
+</svg><figcaption>Maturidade por dimensão de engenharia</figcaption></figure>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Dimensão</th>
+<th style="text-align:left">Nota</th>
+<th style="text-align:left">Leitura</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">D1 Estilo arquitetural</td>
+<td style="text-align:left">1</td>
+<td style="text-align:left">monólito de deploy; interior = transaction script, não Clean Architecture</td>
+</tr>
+<tr>
+<td style="text-align:left">D2 Modelo de domínio</td>
+<td style="text-align:left">0</td>
+<td style="text-align:left">a entidade "trabalho" não existe</td>
+</tr>
+<tr>
+<td style="text-align:left">D3 Integração</td>
+<td style="text-align:left">1</td>
+<td style="text-align:left">apenas HTTP síncrono</td>
+</tr>
+<tr>
+<td style="text-align:left">D4 Concorrência</td>
+<td style="text-align:left">0</td>
+<td style="text-align:left">corrompe e vaza dados sob carga</td>
+</tr>
+<tr>
+<td style="text-align:left">D5 Persistência</td>
+<td style="text-align:left">0</td>
+<td style="text-align:left">filesystem efêmero</td>
+</tr>
+<tr>
+<td style="text-align:left">D6 Segurança</td>
+<td style="text-align:left">0</td>
+<td style="text-align:left">sem identidade, artefatos públicos</td>
+</tr>
+<tr>
+<td style="text-align:left">D7 Confiabilidade</td>
+<td style="text-align:left">1</td>
+<td style="text-align:left">erros tratados, nada recuperável</td>
+</tr>
+<tr>
+<td style="text-align:left">D8 Performance</td>
+<td style="text-align:left">1</td>
+<td style="text-align:left">bom isolado, sem folga nem escala</td>
+</tr>
+<tr>
+<td style="text-align:left">D9 Observabilidade</td>
+<td style="text-align:left">1</td>
+<td style="text-align:left">log de acesso apenas</td>
+</tr>
+<tr>
+<td style="text-align:left">D10 Testabilidade</td>
+<td style="text-align:left">0</td>
+<td style="text-align:left">zero testes e desenho resistente a teste</td>
+</tr>
+<tr>
+<td style="text-align:left">D11 Entrega</td>
+<td style="text-align:left">1</td>
+<td style="text-align:left">reprodutível, porém 852 MB e <code>go run</code></td>
+</tr>
+<tr>
+<td style="text-align:left">D12 Contrato de API</td>
+<td style="text-align:left">2</td>
+<td style="text-align:left">JSON consistente, semântica incorreta</td>
+</tr>
+<tr>
+<td style="text-align:left">D13 Manutenibilidade</td>
+<td style="text-align:left">1</td>
+<td style="text-align:left">pequeno, mas front acoplado ao back</td>
+</tr>
+</tbody></table></div>
+<p><strong>Média: 0,7 / 5.</strong></p>
+<p>A leitura relevante não é a média, mas a distribuição. As dimensões em zero — domínio, concorrência, persistência e segurança — se sustentam mutuamente: sem entidade de trabalho não há onde registrar estado; sem persistência não há dono; sem dono não há autorização; sem identificador único não há isolamento. Atacar qualquer uma isoladamente produz ganho limitado.</p>
+<p>Dimensões com nota 1 ou 2 (entrega, contrato, observabilidade) admitem melhoria incremental de alto retorno e baixo risco, independentemente de decisões arquiteturais maiores.</p>
+<h2 id="17-sintese-do-diagnostico">17. Síntese do diagnóstico</h2>
+<p>Arquiteturalmente, o baseline é um <strong>monólito de deploy</strong> (aceitável) cuja estrutura interna é <strong>Transaction Script</strong>, não Clean Architecture, não camadas e não hexagonal. Não se critica a ausência de microsserviços; critica-se a ausência de fronteiras <em>dentro</em> do único processo.</p>
+<p>É um <strong>protótipo de demonstração competente para o propósito com que foi feito</strong> e inadequado para operação multiusuário — não por falta de recursos, mas porque três decisões de projeto interagem de forma destrutiva:</p>
+<ol>
+<li><strong>Processamento dentro do request HTTP</strong> transforma a conexão do cliente no orquestrador, atando a duração da operação ao timeout da rede e impedindo absorção de picos.</li>
+<li><strong>Timestamp de um segundo como identidade</strong> faz requisições concorrentes compartilharem área de trabalho e nome de saída, produzindo corrupção e vazamento silenciosos.</li>
+<li><strong>Filesystem efêmero como banco de dados</strong> elimina dono, estado, histórico e recuperação.</li>
+</ol>
+<p>Nenhuma das três é um defeito de implementação a ser corrigido pontualmente: são escolhas estruturais, adequadas a um script de demonstração e incompatíveis com um produto. É precisamente por isso que o diagnóstico precede a proposta — a decisão de arquitetura deve responder a estes três pontos com evidência, e não a uma preferência tecnológica.</p>
+<p>O que <strong>não</strong> precisa mudar: a linguagem, o framework HTTP, a ferramenta de extração, a estratégia de não carregar binários em memória, a reprodutibilidade do empacotamento e as funções já coesas.</p>
+<h2 id="18-apendices">18. Apêndices</h2>
+<h3 id="a-indice-de-evidencias">A. Índice de evidências</h3>
+<p>Todos os arquivos em <code>docs/evidence/</code>.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Arquivo</th>
+<th style="text-align:left">Conteúdo</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>01-status.json</code>, <code>01-status.json.txt</code></td>
+<td style="text-align:left">Inventário global retornado sem autenticação</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>02-home-headers.txt</code></td>
+<td style="text-align:left">Cabeçalhos de resposta, incluindo CORS <code>*</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>03-download.txt</code></td>
+<td style="text-align:left">Download de ZIP sem credencial (6 055 887 bytes)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>04-static-outputs.txt</code></td>
+<td style="text-align:left">Mesmo arquivo obtido pela rota estática</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>05-path-traversal.txt</code></td>
+<td style="text-align:left">Cinco tentativas de travessia — todas 404</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>06-invalid-txt-curl.txt</code></td>
+<td style="text-align:left"><code>.txt</code> rejeitado com HTTP 400 em 12 ms</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>07-fake-mp4-curl.txt</code></td>
+<td style="text-align:left">Extensão falsa aceita; HTTP 200 com <code>stderr</code> completo</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>08-concurrent-*.txt</code></td>
+<td style="text-align:left">Primeiro teste de concorrência (2 uploads)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>09-status-after-concurrent.json</code></td>
+<td style="text-align:left">Inventário após a colisão inicial</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>10-image-size.txt</code>, <code>10-image-history.txt</code>, <code>10-image-config.txt</code></td>
+<td style="text-align:left">852 MB, camadas, root, sem healthcheck</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>11-dependencies.txt</code></td>
+<td style="text-align:left">1 dependência direta, 36 módulos no grafo</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>12-code-structure.txt</code></td>
+<td style="text-align:left">437 linhas, 10 funções, 144 de HTML</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>13-docker-stats.txt</code></td>
+<td style="text-align:left">Consumo em repouso e após rajada</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>14-burst-8.txt</code></td>
+<td style="text-align:left">Rajada de 8 uploads com latência e desfecho de cada um</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>15-status-after-burst.json</code></td>
+<td style="text-align:left">3 ZIPs para 8 uploads</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>16-status-inicial-pos-perda.json</code>, <code>16-outputs-vazio.txt</code></td>
+<td style="text-align:left">Estado zerado após perda do container</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>17-sobras-pos-burst.txt</code></td>
+<td style="text-align:left">Órfãos em <code>uploads/</code>, <code>temp/</code> limpo, uso de disco</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>18-zip-contaminacao.txt</code></td>
+<td style="text-align:left">Listagem das 24 entradas com tamanhos</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>PROVA-zip-contaminado-24frames.zip</code></td>
+<td style="text-align:left">O artefato contaminado (12,3 MB)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>19-curva-custo.txt</code>, <code>19-stats-curva.csv</code></td>
+<td style="text-align:left">Curva de custo e amostras de CPU/memória</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>20-status-curva.json</code></td>
+<td style="text-align:left">Tamanhos dos ZIPs da curva</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>21-teste-interrupcao.txt</code></td>
+<td style="text-align:left">Interrupção no meio do job</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>22-cold-start.txt</code>, <code>22-cold-start-detalhe.txt</code></td>
+<td style="text-align:left">13 260 ms até HTTP 200</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>23-disco-final.txt</code></td>
+<td style="text-align:left">491,8 MB acumulados</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>24-macosx-na-imagem.txt</code></td>
+<td style="text-align:left"><code>__MACOSX</code> empacotado</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>25-directory-listing.txt</code></td>
+<td style="text-align:left">Índice de diretório retorna 404</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>26-uploads-expostos.txt</code></td>
+<td style="text-align:left">Vídeo original de terceiro baixável</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ui-home.png</code>, <code>page-*.png</code></td>
+<td style="text-align:left">Interface e lista de arquivos processados</td>
+</tr>
+</tbody></table></div>
+<h3 id="b-diagramas">B. Diagramas</h3>
+<p>Fontes e renderizações em <code>docs/diagrams/</code>.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Arquivo</th>
+<th style="text-align:left">Conteúdo</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>svg/c4-container.svg</code></td>
+<td style="text-align:left">Visão de container com componentes ausentes</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>svg/architecture-layers.svg</code></td>
+<td style="text-align:left">Camadas Clean Architecture versus camadas reais</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>svg/components.svg</code></td>
+<td style="text-align:left">Componentes internos de <code>main.go</code> com hotspots</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>svg/sequence-race.svg</code></td>
+<td style="text-align:left">Sequência da corrida e do vazamento</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>svg/dataflow-lifecycle.svg</code></td>
+<td style="text-align:left">Ciclo de vida do dado, compensação e interrupção</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>svg/cost-curve.svg</code></td>
+<td style="text-align:left">Custo por duração do vídeo</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>svg/cpu-timeline.svg</code></td>
+<td style="text-align:left">CPU e memória durante os processamentos</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>svg/maturity-heatmap.svg</code></td>
+<td style="text-align:left">Maturidade nas 13 dimensões</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>c4-container-baseline.puml</code></td>
+<td style="text-align:left">Fonte PlantUML da visão de container</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>sequence-race-baseline.puml</code></td>
+<td style="text-align:left">Fonte PlantUML da sequência</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>components-baseline.mmd</code></td>
+<td style="text-align:left">Fonte Mermaid dos componentes</td>
+</tr>
+</tbody></table></div>
+<h3 id="c-reproducao-das-medicoes">C. Reprodução das medições</h3>
+<p>Os experimentos podem ser repetidos com o container em execução:</p>
+<div class="code-block"><pre><code>docker build -t fiapx-baseline .
+docker run --rm -p 8080:8080 fiapx-baseline</code></pre></div>
+<ul>
+<li><strong>Corrida de concorrência</strong>: disparar N uploads simultâneos do mesmo arquivo e comparar <code>frame_count</code> da resposta com a duração real do vídeo.</li>
+<li><strong>Exposição de artefatos</strong>: <code>curl http://localhost:8080/api/status</code> sem cabeçalho de autorização, seguido de <code>curl</code> nos caminhos <code>/download/</code> e <code>/uploads/</code>.</li>
+<li><strong>Consumo de recursos</strong>: <code>docker stats &lt;container&gt; --no-stream</code> em laço durante um upload longo.</li>
+<li><strong>Curva de custo</strong>: gerar entradas com <code>ffmpeg -stream_loop N -i amostra.mp4 -c copy saida.mp4</code> e medir <code>time_total</code> do <code>curl</code>.</li>
+<li><strong>Interrupção</strong>: <code>docker kill</code> durante o processamento; observar a resposta do cliente e o estado posterior.</li>
+</ul>
+<h3 id="d-glossario">D. Glossário</h3>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Termo</th>
+<th style="text-align:left">Significado neste documento</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Baseline</strong></td>
+<td style="text-align:left">O projeto base fornecido, objeto desta análise</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Corrida (race condition)</strong></td>
+<td style="text-align:left">Defeito em que o resultado depende do intercalamento temporal de operações concorrentes</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Backpressure</strong></td>
+<td style="text-align:left">Mecanismo que limita a admissão de trabalho conforme a capacidade disponível</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Compensação</strong></td>
+<td style="text-align:left">Ação que desfaz efeitos de uma operação que falhou</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Cold start</strong></td>
+<td style="text-align:left">Tempo entre iniciar o processo e ele estar apto a atender requisições</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>IDOR</strong></td>
+<td style="text-align:left">Acesso a objeto de outro usuário por manipulação de referência direta</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Hotspot</strong></td>
+<td style="text-align:left">Trecho de código que concentra complexidade e defeitos</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Efêmero</strong></td>
+<td style="text-align:left">Armazenamento cujo conteúdo desaparece com o fim do container</td>
+</tr>
+</tbody></table></div>
+<hr/>
+<h2 id="historico-de-revisoes">Histórico de revisões</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Versão</th>
+<th style="text-align:left">Data</th>
+<th style="text-align:left">Alteração</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">0.1</td>
+<td style="text-align:left">19/09/2026</td>
+<td style="text-align:left">Levantamento inicial com uploads exploratórios e testes de segurança</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>1.0</strong></td>
+<td style="text-align:left">19/09/2026</td>
+<td style="text-align:left">Reescrito como deep dive de engenharia: 13 dimensões, 7 diagramas, rajada de 8 uploads, curva de custo, amostragem de recursos, teste de interrupção, cold start e comprovação do vazamento entre requisições</td>
+</tr>
+</tbody></table></div>
+
+</main>
+</div>
+</body>
+</html>

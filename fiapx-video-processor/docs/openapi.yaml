@@ -1,0 +1,133 @@
+openapi: 3.0.3
+info:
+  title: FIAP X Video Processor
+  version: 1.0.0
+  description: API do produto. Upload devolve 202; o FFmpeg corre no worker.
+servers:
+  - url: http://localhost:8081
+paths:
+  /health:
+    get:
+      summary: Liveness/readiness
+      responses:
+        "200":
+          description: OK
+  /auth/register:
+    post:
+      summary: Cria usuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Credentials"
+      responses:
+        "201":
+          description: Criado
+        "400":
+          description: E-mail ou senha inválidos
+        "409":
+          description: E-mail já existe
+  /auth/login:
+    post:
+      summary: Emite JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Credentials"
+      responses:
+        "200":
+          description: Token
+        "401":
+          description: Credenciais inválidas
+  /videos:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Lista jobs do usuário autenticado
+      responses:
+        "200":
+          description: Lista
+        "401":
+          description: Sem token
+    post:
+      security:
+        - bearerAuth: []
+      summary: Enfileira processamento
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [video]
+              properties:
+                video:
+                  type: string
+                  format: binary
+      responses:
+        "202":
+          description: Job QUEUED
+        "400":
+          description: Mídia não suportada
+        "401":
+          description: Sem token
+  /videos/{id}:
+    get:
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Job
+        "403":
+          description: Job de outro usuário
+        "404":
+          description: Não encontrado
+  /videos/{id}/zip:
+    get:
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: ZIP dos frames
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        "403":
+          description: Job de outro usuário
+        "409":
+          description: Job ainda não READY
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+          minLength: 8

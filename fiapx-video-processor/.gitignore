@@ -1,0 +1,9 @@
+bin/
+dist/
+.tmp/
+storage/
+*.exe
+.idea/
+.vscode/
+.env
+clip.mp4

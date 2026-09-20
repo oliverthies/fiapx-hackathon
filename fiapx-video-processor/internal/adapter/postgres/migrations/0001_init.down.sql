@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS video_jobs;
+DROP TABLE IF EXISTS users;

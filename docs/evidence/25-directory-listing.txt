@@ -1,0 +1,7 @@
+﻿=== TESTE: listagem de diretorio via r.Static (http.FileServer) ===
+
+GET /outputs/
+<pre> </pre>  [HTTP=404]
+
+GET /uploads/
+<pre> </pre>  [HTTP=404]

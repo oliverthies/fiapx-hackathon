@@ -1,0 +1,10 @@
+﻿TRY /download/..%2F..%2Fetc%2Fpasswd => HTTP 404 / O servidor remoto retornou um erro: (404) Não Localizado.
+---
+TRY /download/../etc/passwd => HTTP 404 / O servidor remoto retornou um erro: (404) Não Localizado.
+---
+TRY /download/..%2Fmain.go => HTTP 404 / O servidor remoto retornou um erro: (404) Não Localizado.
+---
+TRY /outputs/../main.go => HTTP 404 / O servidor remoto retornou um erro: (404) Não Localizado.
+---
+TRY /outputs/../../etc/passwd => HTTP 404 / O servidor remoto retornou um erro: (404) Não Localizado.
+---

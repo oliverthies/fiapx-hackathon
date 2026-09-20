@@ -1,0 +1,32 @@
+%% FIAP X baseline — C4 nível 3: componentes internos de main.go (437 linhas)
+graph TB
+    subgraph main["main.go — arquivo único, 437 linhas"]
+        direction TB
+        M["main()<br/>linha 30<br/>rotas + CORS inline"]
+        CD["createDirs()<br/>linha 68"]
+        HU["handleVideoUpload()<br/>linha 75<br/>HTTP + I/O + orquestração"]
+        PV["processVideo()<br/>linha 126<br/>FFmpeg + Glob + ZIP + log"]
+        CZ["createZipFile()<br/>linha 187"]
+        AZ["addFileToZip()<br/>linha 207"]
+        HD["handleDownload()<br/>linha 236"]
+        HS["handleStatus()<br/>linha 253<br/>Glob no filesystem"]
+        IV["isValidVideoFile()<br/>linha 281<br/>só extensão"]
+        HF["getHTMLForm()<br/>linha 293<br/>144 linhas de HTML/CSS/JS"]
+    end
+
+    M --> HU
+    M --> HD
+    M --> HS
+    M --> HF
+    M --> CD
+    HU --> IV
+    HU --> PV
+    PV --> CZ
+    CZ --> AZ
+
+    classDef mixed fill:#ffe8e8,stroke:#c0392b,color:#111
+    classDef ui fill:#eef3ff,stroke:#2c5aa0,color:#111
+    classDef ok fill:#eaf7ea,stroke:#2e7d32,color:#111
+    class HU,PV mixed
+    class HF ui
+    class CZ,AZ,IV ok

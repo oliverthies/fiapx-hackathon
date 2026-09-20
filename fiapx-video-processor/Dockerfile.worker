@@ -1,0 +1,15 @@
+FROM golang:1.22-alpine AS build
+WORKDIR /src
+COPY go.mod ./
+COPY . .
+RUN go mod tidy && CGO_ENABLED=0 go build -o /out/worker ./cmd/worker
+
+FROM alpine:3.20
+RUN adduser -D -u 10001 app \
+    && apk add --no-cache ffmpeg ca-certificates \
+    && mkdir -p /data/uploads /data/outputs /data/temp \
+    && chown -R app:app /data
+USER app
+WORKDIR /home/app
+COPY --from=build /out/worker ./worker
+CMD ["./worker"]

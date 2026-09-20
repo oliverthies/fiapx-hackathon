@@ -1,0 +1,18 @@
+FROM golang:1.22-alpine AS build
+WORKDIR /src
+COPY go.mod ./
+COPY . .
+# web/ entra no binário via go:embed (adapter de apresentação)
+RUN go mod tidy && CGO_ENABLED=0 go build -o /out/api ./cmd/api
+
+FROM alpine:3.20
+RUN adduser -D -u 10001 app \
+    && apk add --no-cache ca-certificates \
+    && mkdir -p /data/uploads /data/outputs /data/temp \
+    && chown -R app:app /data
+USER app
+WORKDIR /home/app
+COPY --from=build /out/api ./api
+EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=3s --retries=5 CMD wget -qO- http://127.0.0.1:8080/health || exit 1
+CMD ["./api"]

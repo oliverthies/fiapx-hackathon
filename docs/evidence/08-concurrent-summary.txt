@@ -1,0 +1,5 @@
+﻿Wall clock concurrent ~2054ms
+Job Suzuka: HTTP 200 success=false ZIP race: open temp/20260919_154607/frame_0003.png: no such file or directory (time=1.923s)
+Job Senna: HTTP 200 success=true 27 frames zip=frames_20260919_154607.zip (time=1.782s)
+Same timestamp folder temp/20260919_154607 used by both. defer RemoveAll in one request deletes frames of the other.
+Status after: 3 zips total - failed job left no FAILED record.

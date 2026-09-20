@@ -1,0 +1,43 @@
+@startuml c4-container-baseline
+!define RECTANGLE class
+title FIAP X baseline — C4 nível 2 (container) — as-is em 19/09/2026
+
+skinparam defaultFontName Segoe UI
+skinparam shadowing false
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #555555
+}
+
+actor "Usuário anônimo\n(sem identidade)" as user
+
+rectangle "Container Docker único\nimagem fiapx-baseline (852 MB)\nCMD go run main.go — PID 1 root" as box #F7F7F7 {
+  rectangle "Servidor Gin :8080\n(modo debug, trust all proxies)\nHTML + API na mesma binary" as gin
+  rectangle "processVideo()\nexec.Command(ffmpeg)\n-vf fps=1" as proc
+  rectangle "FFmpeg 6.1.1\nmultithread (até 29 threads)" as ffmpeg
+  rectangle "archive/zip\ncompressão single-thread" as zip
+  database "Filesystem do container\nuploads/ temp/ outputs/\noverlay efêmero, sem volume" as fs
+}
+
+user --> gin : HTTP sem TLS\nsem autenticação\nCORS *
+gin --> proc : chamada síncrona\ndentro do request
+proc --> ffmpeg : processo filho
+ffmpeg --> fs : temp/{timestamp}/frame_%04d.png
+proc --> zip : Glob(temp/*.png)
+zip --> fs : outputs/frames_{timestamp}.zip
+gin --> fs : GET /download/:file\nGET /outputs/* (static)\nGET /api/status (Glob)
+
+note right of fs
+  Sem banco de dados.
+  Sem fila.
+  Sem registro de job.
+  docker run --rm => perda total.
+end note
+
+note bottom of proc
+  Identidade do job = timestamp de 1 segundo.
+  Dois requests no mesmo segundo
+  compartilham pasta e nome de ZIP.
+end note
+
+@enduml

@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" width="900" height="520" font-family="Segoe UI, Calibri, Arial, sans-serif">
+  <rect width="900" height="520" fill="#ffffff"/>
+  <text x="20" y="24" font-size="14" font-weight="700" fill="#111">Maturidade por dimensão de engenharia: baseline FIAP X</text>
+  <text x="20" y="42" font-size="11" fill="#666">Escala 0 (inexistente) a 5 (nível praticado nas Fases 3 e 4 da oficina). Avaliação baseada em código lido e comportamento medido.</text>
+
+  <text x="330" y="66" font-size="10" fill="#888">0</text>
+  <text x="430" y="66" font-size="10" fill="#888">1</text>
+  <text x="530" y="66" font-size="10" fill="#888">2</text>
+  <text x="630" y="66" font-size="10" fill="#888">3</text>
+  <text x="730" y="66" font-size="10" fill="#888">4</text>
+  <text x="826" y="66" font-size="10" fill="#888">5</text>
+  <line x1="326" y1="72" x2="326" y2="472" stroke="#ddd"/>
+  <line x1="426" y1="72" x2="426" y2="472" stroke="#eee"/>
+  <line x1="526" y1="72" x2="526" y2="472" stroke="#eee"/>
+  <line x1="626" y1="72" x2="626" y2="472" stroke="#eee"/>
+  <line x1="726" y1="72" x2="726" y2="472" stroke="#eee"/>
+  <line x1="826" y1="72" x2="826" y2="472" stroke="#ddd"/>
+
+  <g font-size="11" fill="#222">
+    <text x="20" y="90">D1 · Estilo arquitetural e separação</text>
+    <rect x="326" y="80" width="100" height="14" fill="#e06c5a"/>
+    <text x="436" y="90" font-size="10" fill="#666">1 · monólito de deploy; interior = transaction script</text>
+
+    <text x="20" y="120">D2 · Modelo de domínio e estados</text>
+    <rect x="326" y="110" width="4" height="14" fill="#c0392b"/>
+    <text x="436" y="120" font-size="10" fill="#666">0 · não existe a entidade "job"</text>
+
+    <text x="20" y="150">D3 · Integração e comunicação</text>
+    <rect x="326" y="140" width="100" height="14" fill="#e06c5a"/>
+    <text x="436" y="150" font-size="10" fill="#666">1 · só HTTP síncrono, sem broker nem backpressure</text>
+
+    <text x="20" y="180">D4 · Concorrência e consistência</text>
+    <rect x="326" y="170" width="4" height="14" fill="#c0392b"/>
+    <text x="436" y="180" font-size="10" fill="#666">0 · corrompe dados sob carga (vazamento entre requisições)</text>
+
+    <text x="20" y="210">D5 · Persistência e durabilidade</text>
+    <rect x="326" y="200" width="4" height="14" fill="#c0392b"/>
+    <text x="436" y="210" font-size="10" fill="#666">0 · filesystem efêmero, sem SGBD</text>
+
+    <text x="20" y="240">D6 · Segurança</text>
+    <rect x="326" y="230" width="4" height="14" fill="#c0392b"/>
+    <text x="436" y="240" font-size="10" fill="#666">0 · sem AuthN/AuthZ; artefatos de terceiros acessíveis</text>
+
+    <text x="20" y="270">D7 · Confiabilidade e resiliência</text>
+    <rect x="326" y="260" width="100" height="14" fill="#e06c5a"/>
+    <text x="436" y="270" font-size="10" fill="#666">1 · erros capturados, mas sem retry, timeout ou recuperação</text>
+
+    <text x="20" y="300">D8 · Performance e escalabilidade</text>
+    <rect x="326" y="290" width="100" height="14" fill="#e06c5a"/>
+    <text x="436" y="300" font-size="10" fill="#666">1 · funciona sozinho; sem folga de CPU nem escala horizontal</text>
+
+    <text x="20" y="330">D9 · Observabilidade</text>
+    <rect x="326" y="320" width="100" height="14" fill="#e06c5a"/>
+    <text x="436" y="330" font-size="10" fill="#666">1 · log de acesso do Gin; nenhum sinal de negócio</text>
+
+    <text x="20" y="360">D10 · Testabilidade e qualidade</text>
+    <rect x="326" y="350" width="4" height="14" fill="#c0392b"/>
+    <text x="436" y="360" font-size="10" fill="#666">0 · nenhum teste e o desenho impede testar</text>
+
+    <text x="20" y="390">D11 · Engenharia de entrega</text>
+    <rect x="326" y="380" width="100" height="14" fill="#e06c5a"/>
+    <text x="436" y="390" font-size="10" fill="#666">1 · build reprodutível, mas go run e imagem de 852 MB</text>
+
+    <text x="20" y="420">D12 · Contrato de API</text>
+    <rect x="326" y="410" width="200" height="14" fill="#e8a33d"/>
+    <text x="536" y="420" font-size="10" fill="#666">2 · JSON consistente; semântica HTTP incorreta, sem OpenAPI</text>
+
+    <text x="20" y="450">D13 · Manutenibilidade</text>
+    <rect x="326" y="440" width="100" height="14" fill="#e06c5a"/>
+    <text x="436" y="450" font-size="10" fill="#666">1 · 437 linhas legíveis, mas front e back acoplados</text>
+  </g>
+
+  <rect x="20" y="486" width="860" height="26" rx="4" fill="#fafafa" stroke="#bbb"/>
+  <text x="34" y="503" font-size="10.5" fill="#333">Média 0,7 de 5. As quatro dimensões em zero (domínio, concorrência, persistência, segurança) são as que impedem qualquer uso multiusuário: não são questão de refinamento.</text>
+</svg>

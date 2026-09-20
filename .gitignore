@@ -1,0 +1,23 @@
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# secrets / local
+.env
+*.exe
+bin/
+dist/
+.tmp/
+.idea/
+.vscode/
+
+# enunciado: não versionar
+videos samples/
+projeto-fiapx - Copia/
+projeto-fiapx.zip
+
+# gerados
+**/clip.mp4
+fiapx-video-processor/clip.mp4
+fiapx-video-processor/storage/

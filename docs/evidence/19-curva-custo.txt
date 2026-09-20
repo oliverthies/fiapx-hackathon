@@ -1,0 +1,6 @@
+﻿=== CURVA DE CUSTO (sequencial, conteudo real em loop) ===
+short-12s;durSeg=12;inputMB=3.43;success=True;frames=12;zip=frames_20260919_162038.zip;HTTP=200|time=0.912253;start=13:20:38;end=13:20:38
+long-40s;durSeg=40;inputMB=5.46;success=True;frames=40;zip=frames_20260919_162040.zip;HTTP=200|time=2.245544;start=13:20:40;end=13:20:42
+loop-120s;durSeg=120;inputMB=16.38;success=True;frames=121;zip=frames_20260919_162044.zip;HTTP=200|time=6.170679;start=13:20:44;end=13:20:50
+loop-240s;durSeg=240;inputMB=32.77;success=True;frames=241;zip=frames_20260919_162052.zip;HTTP=200|time=12.922043;start=13:20:52;end=13:21:04
+loop-480s;durSeg=480;inputMB=65.53;success=True;frames=483;zip=frames_20260919_162106.zip;HTTP=200|time=29.600233;start=13:21:06;end=13:21:36

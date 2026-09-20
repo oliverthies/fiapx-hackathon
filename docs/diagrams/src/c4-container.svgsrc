@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" width="900" height="600" font-family="Segoe UI, Calibri, Arial, sans-serif">
+  <rect width="900" height="600" fill="#ffffff"/>
+
+  <rect x="330" y="14" width="240" height="52" rx="6" fill="#f2f2f2" stroke="#666" stroke-width="1.2"/>
+  <text x="450" y="36" font-size="13" font-weight="600" text-anchor="middle" fill="#111">Usuário anônimo</text>
+  <text x="450" y="54" font-size="11" text-anchor="middle" fill="#666">sem conta, sem sessão, sem identidade</text>
+
+  <line x1="450" y1="66" x2="450" y2="120" stroke="#c0392b" stroke-width="1.6" marker-end="url(#ah)"/>
+  <text x="462" y="88" font-size="11" fill="#c0392b">HTTP :8080 · sem TLS</text>
+  <text x="462" y="103" font-size="11" fill="#c0392b">sem AuthN/AuthZ · CORS *</text>
+
+  <rect x="30" y="120" width="840" height="400" rx="8" fill="#fafafa" stroke="#444" stroke-width="1.6" stroke-dasharray="7 4"/>
+  <text x="46" y="142" font-size="12" font-weight="700" fill="#333">Container Docker único — imagem fiapx-baseline 852 MB — CMD ["go","run","main.go"] — PID 1 root</text>
+
+  <rect x="56" y="158" width="250" height="78" rx="5" fill="#eef3ff" stroke="#2c5aa0" stroke-width="1.3"/>
+  <text x="181" y="180" font-size="12.5" font-weight="600" text-anchor="middle" fill="#123">Servidor Gin :8080</text>
+  <text x="181" y="198" font-size="10.5" text-anchor="middle" fill="#445">modo debug · trust all proxies</text>
+  <text x="181" y="213" font-size="10.5" text-anchor="middle" fill="#445">HTML (144 linhas) + API na mesma binary</text>
+  <text x="181" y="228" font-size="10.5" text-anchor="middle" fill="#445">6 rotas, nenhuma protegida</text>
+
+  <rect x="340" y="158" width="230" height="78" rx="5" fill="#ffe8e8" stroke="#c0392b" stroke-width="1.3"/>
+  <text x="455" y="180" font-size="12.5" font-weight="600" text-anchor="middle" fill="#111">processVideo()</text>
+  <text x="455" y="198" font-size="10.5" text-anchor="middle" fill="#633">executa DENTRO do request HTTP</text>
+  <text x="455" y="213" font-size="10.5" text-anchor="middle" fill="#633">sem timeout, sem cancelamento</text>
+  <text x="455" y="228" font-size="10.5" text-anchor="middle" fill="#633">id do job = timestamp de 1 s</text>
+
+  <rect x="604" y="158" width="240" height="78" rx="5" fill="#f2f2f2" stroke="#666" stroke-width="1.3"/>
+  <text x="724" y="180" font-size="12.5" font-weight="600" text-anchor="middle" fill="#111">FFmpeg 6.1.1 (processo filho)</text>
+  <text x="724" y="198" font-size="10.5" text-anchor="middle" fill="#555">-vf fps=1 · até 29 threads</text>
+  <text x="724" y="213" font-size="10.5" text-anchor="middle" fill="#555">pico medido 475,66% de CPU</text>
+  <text x="724" y="228" font-size="10.5" text-anchor="middle" fill="#555">(600% disponíveis · 6 vCPU)</text>
+
+  <rect x="340" y="266" width="230" height="62" rx="5" fill="#f2f2f2" stroke="#666" stroke-width="1.3"/>
+  <text x="455" y="288" font-size="12.5" font-weight="600" text-anchor="middle" fill="#111">archive/zip</text>
+  <text x="455" y="306" font-size="10.5" text-anchor="middle" fill="#555">compressão single-thread (~100% CPU)</text>
+  <text x="455" y="321" font-size="10.5" text-anchor="middle" fill="#555">Deflate sobre PNG já comprimido</text>
+
+  <rect x="56" y="360" width="788" height="94" rx="5" fill="#fff6e5" stroke="#b8860b" stroke-width="1.4"/>
+  <text x="450" y="382" font-size="12.5" font-weight="700" text-anchor="middle" fill="#5a4200">Filesystem do container — overlayfs efêmero (Mounts=[], sem volume)</text>
+  <text x="450" y="402" font-size="11" text-anchor="middle" fill="#5a4200">/app/uploads (original) · /app/temp/{timestamp}/frame_%04d.png · /app/outputs/frames_{timestamp}.zip</text>
+  <text x="450" y="422" font-size="11" font-weight="600" text-anchor="middle" fill="#8b2500">Sem banco de dados · sem fila · sem registro de job · sem histórico</text>
+  <text x="450" y="441" font-size="11" font-weight="600" text-anchor="middle" fill="#8b2500">docker kill + --rm = perda total (comprovado: 5 ZIPs e 491 MB desapareceram)</text>
+
+  <line x1="306" y1="188" x2="340" y2="188" stroke="#c0392b" stroke-width="1.6" marker-end="url(#ah)"/>
+  <text x="323" y="180" font-size="9.5" text-anchor="middle" fill="#c0392b">síncrono</text>
+  <line x1="570" y1="188" x2="604" y2="188" stroke="#666" stroke-width="1.4" marker-end="url(#ah)"/>
+  <line x1="455" y1="236" x2="455" y2="266" stroke="#666" stroke-width="1.4" marker-end="url(#ah)"/>
+  <line x1="724" y1="236" x2="724" y2="360" stroke="#b8860b" stroke-width="1.4" marker-end="url(#ah)"/>
+  <text x="734" y="300" font-size="10" fill="#8a6508">grava frames</text>
+  <line x1="455" y1="328" x2="455" y2="360" stroke="#b8860b" stroke-width="1.4" marker-end="url(#ah)"/>
+  <line x1="150" y1="236" x2="150" y2="360" stroke="#b8860b" stroke-width="1.4" marker-end="url(#ah)"/>
+  <text x="160" y="270" font-size="10" fill="#8a6508">GET /download/:file</text>
+  <text x="160" y="285" font-size="10" fill="#8a6508">GET /outputs/* (static)</text>
+  <text x="160" y="300" font-size="10" fill="#8a6508">GET /api/status → Glob</text>
+
+  <rect x="30" y="536" width="840" height="50" rx="6" fill="#ffffff" stroke="#bbb" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="46" y="556" font-size="11.5" font-weight="700" fill="#777">Componentes ausentes em relação às fases anteriores do curso:</text>
+  <text x="46" y="574" font-size="11" fill="#777">API Gateway · serviço de autenticação/JWT · broker (RabbitMQ/Kafka) · worker independente · PostgreSQL + Flyway · Redis · object storage · SMTP/notificação · APM/métricas</text>
+
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555"/>
+    </marker>
+  </defs>
+</svg>

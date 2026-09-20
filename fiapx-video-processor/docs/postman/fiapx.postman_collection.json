@@ -1,0 +1,62 @@
+{
+  "info": {
+    "name": "FIAP X Video Processor",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8081" },
+    { "key": "token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "health",
+      "request": { "method": "GET", "url": "{{baseUrl}}/health" }
+    },
+    {
+      "name": "register",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"email\":\"ana@fiapx.local\",\"password\":\"secret123\"}" },
+        "url": "{{baseUrl}}/auth/register"
+      }
+    },
+    {
+      "name": "login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["var j = pm.response.json();", "if (j.token) pm.collectionVariables.set('token', j.token);"]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"email\":\"ana@fiapx.local\",\"password\":\"secret123\"}" },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "upload",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "body": {
+          "mode": "formdata",
+          "formdata": [{ "key": "video", "type": "file", "src": [] }]
+        },
+        "url": "{{baseUrl}}/videos"
+      }
+    },
+    {
+      "name": "list",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/videos"
+      }
+    }
+  ]
+}
