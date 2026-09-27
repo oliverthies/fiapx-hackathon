@@ -112,11 +112,90 @@ func TestParseProcessor(t *testing.T) {
 	if err != nil || got != ProcessorFFmpeg {
 		t.Fatalf("empty: %s %v", got, err)
 	}
+	got, err = ParseProcessor("  FFMPEG ")
+	if err != nil || got != ProcessorFFmpeg {
+		t.Fatalf("ffmpeg: %s %v", got, err)
+	}
 	got, err = ParseProcessor("GST")
 	if err != nil || got != ProcessorGStreamer {
 		t.Fatalf("gst: %s %v", got, err)
 	}
+	got, err = ParseProcessor(" gstreamer ")
+	if err != nil || got != ProcessorGStreamer {
+		t.Fatalf("gstreamer: %s %v", got, err)
+	}
 	if _, err := ParseProcessor("handbrake"); err != ErrUnknownProcessor {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestNewVideoJobNormalizesNameAndExtensions(t *testing.T) {
+	for _, name := range []string{"dir/clip.MP4", "a.avi", "b.mov", "c.mkv", "d.wmv", "e.flv", "f.webm"} {
+		job, err := NewVideoJob(uuid.New(), name, "in", "c")
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if name == "dir/clip.MP4" && job.OriginalFilename != "clip.MP4" {
+			t.Fatalf("base name: %s", job.OriginalFilename)
+		}
+	}
+	if _, err := NewVideoJob(uuid.New(), "noext", "in", "c"); err != ErrUnsupportedMedia {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestInvalidTransitionsAndReadyGate(t *testing.T) {
+	job, err := NewVideoJob(uuid.New(), "a.mp4", "a.mp4", "c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := job.StartProcessing(); err != ErrInvalidTransition {
+		t.Fatalf("start from uploaded: %v", err)
+	}
+	if err := job.Fail("x"); err != ErrInvalidTransition {
+		t.Fatalf("fail from uploaded: %v", err)
+	}
+	if err := job.EnsureReady(); err != ErrJobNotReady {
+		t.Fatalf("ready gate: %v", err)
+	}
+	if err := job.Queue(); err != nil {
+		t.Fatal(err)
+	}
+	if err := job.Queue(); err != ErrInvalidTransition {
+		t.Fatalf("double queue: %v", err)
+	}
+	if err := job.StartProcessing(); err != nil {
+		t.Fatal(err)
+	}
+	if err := job.Complete("z.zip", "t.png", 1, 1, time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if err := job.EnsureReady(); err != nil {
+		t.Fatal(err)
+	}
+	if err := job.Fail("late"); err != ErrInvalidTransition {
+		t.Fatalf("fail from ready: %v", err)
+	}
+}
+
+func TestStatusTransitions(t *testing.T) {
+	cases := []struct {
+		from, to JobStatus
+		ok       bool
+	}{
+		{StatusUploaded, StatusQueued, true},
+		{StatusUploaded, StatusProcessing, false},
+		{StatusQueued, StatusProcessing, true},
+		{StatusQueued, StatusReady, false},
+		{StatusProcessing, StatusReady, true},
+		{StatusProcessing, StatusFailed, true},
+		{StatusProcessing, StatusQueued, false},
+		{StatusReady, StatusFailed, false},
+		{StatusFailed, StatusReady, false},
+	}
+	for _, tc := range cases {
+		if tc.from.CanTransitionTo(tc.to) != tc.ok {
+			t.Fatalf("%s -> %s want %v", tc.from, tc.to, tc.ok)
+		}
 	}
 }
