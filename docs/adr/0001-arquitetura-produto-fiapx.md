@@ -1,11 +1,11 @@
-# ADR 0001 — Arquitetura de produto: Go, Clean Architecture, API + worker
+# ADR 0001: Arquitetura de produto (Go, Clean Architecture, API + worker)
 
 | Metadado | Valor |
 |----------|--------|
 | **Status** | Aceita |
 | **Data** | 2026-09-19 |
 | **Autores** | Oliver Thies / Hackathon FIAP X |
-| **Contexto** | POSTECH SOAT Fase 5 — processador de vídeos |
+| **Contexto** | POSTECH SOAT Fase 5, processador de vídeos |
 | **Relacionados** | [Deep dive do baseline](../RELATORIO_BASELINE_ARQUITETURA.md), evidências em `docs/evidence/` |
 
 ---
@@ -18,7 +18,7 @@ O baseline (`projeto-fiapx`) entrega o pitch de um vídeo → ZIP e falha como p
 - identidade do trabalho = timestamp de **1 segundo**, com corrida reproduzida (`20260919_161553`): ZIP contaminado com frames de outro upload;
 - filesystem efêmero como banco (`--rm`, sem volume): perda total ao matar o container;
 - nenhuma autenticação; `/api/status` e `/uploads` públicos;
-- *transaction script* em um arquivo — não Clean Architecture, não camadas.
+- *transaction script* em um arquivo. Sem Clean Architecture e sem camadas.
 
 O enunciado pede: vários vídeos ao mesmo tempo, pico sem perda, usuário/senha, listagem de status do usuário, notificação em erro, persistência, testes e CI.
 
@@ -35,7 +35,7 @@ Adotar um **monólito modular de dois processos** em **Go**, com Clean Architect
 3. **PostgreSQL** é a fonte de verdade de usuários e jobs (golang-migrate).
 4. **RabbitMQ** é o buffer de pico (ack após conclusão ou falha registrada; DLQ com retry limitado).
 5. Binários em **volume**; porta de storage pronta para S3. SMTP via Mailhog na demo.
-6. O `projeto-fiapx/` **não** é evoluído in-place — permanece como evidência do “antes”.
+6. O `projeto-fiapx/` fica intacto. Ele é a evidência do antes.
 
 Estados do agregado `VideoJob`: `UPLOADED → QUEUED → PROCESSING → READY | FAILED`.
 
@@ -48,14 +48,14 @@ Regra de dependência: `internal/domain` e `internal/application` não importam 
 ### Positivas
 
 - Responde às três causas estruturais do diagnóstico (HTTP como orquestrador, timestamp compartilhado, disco como banco).
-- Permite N workers no Compose — prova de “mais de um vídeo ao mesmo tempo”.
+- Dá para subir N workers no Compose e processar mais de um vídeo ao mesmo tempo.
 - Mesma disciplina da oficina (CA, fila, estados, JWT, migrate) sem portar entidades de oficina.
 - Linguagem do baseline: o vídeo pode contrastar *transaction script* vs pacotes/portas no mesmo ecossistema.
 
 ### Negativas / custos
 
 - Dois processos e mais moving parts que o zip original.
-- Go na máquina de demo pode faltar — o build fica nas imagens Docker (multi-stage, nunca `go run`).
+- A máquina de demo pode não ter Go. O build fica nas imagens Docker (multi-stage, sem `go run`).
 - Sem Jacoco: cobertura via `go test -cover` (equivalente a mostrar no vídeo).
 
 ### Riscos mitigados
@@ -74,7 +74,7 @@ Regra de dependência: `internal/domain` e `internal/application` não importam 
 | Alternativa | Veredito |
 |-------------|----------|
 | **A. Go + CA + API/worker + Rabbit + Postgres** | **Escolhida** |
-| B. Evoluir `main.go` in-place (mutex, UUID no script) | Rejeitada — não cria domínio, fila nem auth |
+| B. Evoluir `main.go` in-place (mutex, UUID no script) | Rejeitada. Não cria domínio, fila nem auth |
 | C. Java/Spring (mesmo desenho) | Equivalente arquitetural; rejeitada para reusar a língua do baseline e contrastar CA vs o zip |
 | D. Thread pool no request HTTP | Não absorve pico nem sobrevive a crash |
 | E. Serverless (S3 + SQS + Lambda) | Fora do prazo e da stack demonstrável no lab |
@@ -99,4 +99,4 @@ Regra de dependência: `internal/domain` e `internal/application` não importam 
 | Versão | Data | Alteração |
 |--------|------|-----------|
 | 0.1 | 2026-09-19 | Proposta |
-| 1.0 | 2026-09-19 | Aceita — produto em `fiapx-video-processor/` sobe no Compose |
+| 1.0 | 2026-09-19 | Aceita. Produto em `fiapx-video-processor/` sobe no Compose |

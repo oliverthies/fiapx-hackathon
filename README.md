@@ -1,4 +1,4 @@
-# FIAP X — hackathon POSTECH SOAT Fase 5
+# FIAP X: hackathon POSTECH SOAT Fase 5
 
 Produto de processamento de vídeo (upload → frames → ZIP) em Go + Clean Architecture.
 

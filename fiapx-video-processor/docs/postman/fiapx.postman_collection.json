@@ -5,7 +5,8 @@
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:8081" },
-    { "key": "token", "value": "" }
+    { "key": "token", "value": "" },
+    { "key": "jobId", "value": "" }
   ],
   "item": [
     {
@@ -56,6 +57,14 @@
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
         "url": "{{baseUrl}}/videos"
+      }
+    },
+    {
+      "name": "delete",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/videos/{{jobId}}"
       }
     }
   ]

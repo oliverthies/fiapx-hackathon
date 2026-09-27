@@ -1,5 +1,5 @@
 @startuml c4-container-produto
-title FIAP X produto — C4 nível 2 (container) — to-be
+title FIAP X produto: C4 nível 2 (container), to-be
 
 skinparam defaultFontName Segoe UI
 skinparam shadowing false

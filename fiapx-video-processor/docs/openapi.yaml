@@ -49,7 +49,18 @@ paths:
       summary: Lista jobs do usuário autenticado
       responses:
         "200":
-          description: Lista
+          description: Lista de jobs com tempos por vídeo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/VideoJob"
         "401":
           description: Sem token
     post:
@@ -67,6 +78,10 @@ paths:
                 video:
                   type: string
                   format: binary
+                processor:
+                  type: string
+                  enum: [ffmpeg, gstreamer]
+                  description: Motor de extração (padrão ffmpeg). GStreamer é a alternativa open source.
       responses:
         "202":
           description: Job QUEUED
@@ -92,6 +107,25 @@ paths:
           description: Job de outro usuário
         "404":
           description: Não encontrado
+    delete:
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Job, original, ZIP e thumbnail removidos
+        "403":
+          description: Job de outro usuário
+        "404":
+          description: Não encontrado
+        "409":
+          description: Job ainda em processamento
   /videos/{id}/zip:
     get:
       security:
@@ -115,6 +149,27 @@ paths:
           description: Job de outro usuário
         "409":
           description: Job ainda não READY
+  /videos/{id}/thumb:
+    get:
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Primeiro frame (PNG)
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Thumbnail ainda não gerada
 components:
   securitySchemes:
     bearerAuth:
@@ -131,3 +186,52 @@ components:
         password:
           type: string
           minLength: 8
+    VideoJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [UPLOADED, QUEUED, PROCESSING, READY, FAILED]
+        original_filename:
+          type: string
+        frame_count:
+          type: integer
+        error_message:
+          type: string
+        correlation_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+        queue_wait_ms:
+          type: integer
+          description: Tempo na fila até o worker iniciar (ausente se ainda QUEUED)
+        ffmpeg_ms:
+          type: integer
+          description: Alias de process_ms (tempo do adapter de extração)
+        process_ms:
+          type: integer
+          description: Tempo do processador de frames (FFmpeg ou outro driver)
+        zip_bytes:
+          type: integer
+          format: int64
+        has_thumb:
+          type: boolean
+        processor:
+          type: string
+          enum: [ffmpeg, gstreamer]
+        total_ms:
+          type: integer
+          description: created_at até finished_at (ausente se ainda em processamento)

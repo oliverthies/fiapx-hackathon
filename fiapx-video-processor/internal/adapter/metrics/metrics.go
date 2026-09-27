@@ -36,7 +36,7 @@ var (
 
 	JobsProcessing = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "jobs_processing",
-		Help: "Jobs currently in FFmpeg on this worker",
+		Help: "Jobs currently extracting frames on this worker",
 	})
 
 	JobsReady = promauto.NewCounter(prometheus.CounterOpts{
@@ -52,6 +52,12 @@ var (
 	FFmpegDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Name:    "ffmpeg_duration_seconds",
 		Help:    "FFmpeg extract+zip duration",
+		Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1, 2, 5, 15, 30, 60},
+	})
+
+	GStreamerDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "gstreamer_duration_seconds",
+		Help:    "GStreamer extract+zip duration",
 		Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1, 2, 5, 15, 30, 60},
 	})
 )

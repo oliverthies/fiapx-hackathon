@@ -40,7 +40,7 @@ services:
     user: "0:0"
     volumes:
       - mediadata:/data
-    command: sh -c "mkdir -p /data/uploads /data/outputs /data/temp && chown -R 10001:10001 /data"
+    command: sh -c "mkdir -p /data/uploads /data/outputs /data/temp /data/thumbs && chown -R 10001:10001 /data"
 
   api:
     build:
@@ -51,6 +51,7 @@ services:
       RABBIT_URL: amqp://guest:guest@rabbitmq:5672/
       SMTP_ADDR: mailhog:1025
       JWT_SECRET: dev-secret-change-me
+      STORAGE_DRIVER: fs
       STORAGE_ROOT: /data
       HTTP_ADDR: :8080
     ports:
@@ -58,6 +59,12 @@ services:
     restart: unless-stopped
     volumes:
       - mediadata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,7 +81,11 @@ services:
       DATABASE_URL: postgres://fiapx:fiapx@postgres:5432/fiapx?sslmode=disable
       RABBIT_URL: amqp://guest:guest@rabbitmq:5672/
       SMTP_ADDR: mailhog:1025
+      STORAGE_DRIVER: fs
       STORAGE_ROOT: /data
+      PROCESSOR_DRIVER: ffmpeg
+      PROCESSOR_BIN: ffmpeg
+      GSTREAMER_BIN: gst-launch-1.0
       METRICS_ADDR: :9090
     volumes:
       - mediadata:/data
@@ -86,6 +97,8 @@ services:
         condition: service_healthy
       init-storage:
         condition: service_completed_successfully
+      api:
+        condition: service_healthy
     # Para dois workers: docker compose up --scale worker=2
 
   prometheus:

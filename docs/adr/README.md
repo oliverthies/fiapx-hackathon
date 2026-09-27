@@ -1,6 +1,6 @@
-# Architecture Decision Records — FIAP X
+# Architecture Decision Records: FIAP X
 
-Formato inspirado em [Michael Nygard — ADR](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions), o mesmo da oficina.
+Formato inspirado no [ADR de Michael Nygard](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions), o mesmo da oficina.
 
 | ADR | Título | Status |
 |-----|--------|--------|

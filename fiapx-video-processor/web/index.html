@@ -3,67 +3,172 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>FIAP X — processador de vídeos</title>
-  <link rel="stylesheet" href="/assets/app.css">
+  <title>FIAP X Studio</title>
+  <link rel="stylesheet" href="/assets/app.css?v=10">
 </head>
-<body>
-  <header class="top">
-    <div class="brand">
-      <span class="mark">FX</span>
-      <div>
-        <strong>FIAP X</strong>
-        <small>Processador de vídeos</small>
-      </div>
+<body class="signed-out">
+  <header class="masthead">
+    <div class="mast-left">
+      <button type="button" id="nav-toggle" class="icon-btn" aria-label="Menu" title="Menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/></svg>
+      </button>
+      <a class="brand" href="/" aria-label="FIAP X Studio">
+        <span class="mark">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6.8v10.4L18 12 8 6.8z"/></svg>
+        </span>
+        <span class="brand-text">
+          <strong>FIAP X</strong>
+          <small>Studio</small>
+        </span>
+      </a>
     </div>
-    <div id="session" class="session hidden">
-      <span id="who"></span>
-      <button type="button" id="logout" class="ghost">Sair</button>
+    <form id="search-form" class="mast-search" role="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.8l-.3-.3A6.5 6.5 0 1 0 14 15.5l.3.3v.8l5 5 1.5-1.5-5-5zm-6 0C7 14 5 12 5 9.5S7 5 9.5 5 14 7 14 9.5 12 14 9.5 14z"/></svg>
+      <input type="search" id="search" placeholder="Pesquisar vídeos" autocomplete="off">
+    </form>
+    <div class="mast-right">
+      <button type="button" id="create-btn" class="create-btn hidden">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 10.5V7c0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1v10c0 .6.4 1 1 1h12c.6 0 1-.4 1-1v-3.5l4 4v-11l-4 4zM14 13h-3v3H9v-3H6v-2h3V8h2v3h3v2z"/></svg>
+        Enviar
+      </button>
+      <div id="session" class="session hidden">
+        <span id="who-label" class="who-label"></span>
+        <span id="who" class="avatar" aria-hidden="true">A</span>
+        <button type="button" id="logout" class="icon-btn" title="Sair" aria-label="Sair">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.1 15.6 8.7 17l-5-5 5-5 1.4 1.4L6.8 11H21v2H6.8l3.3 2.6zM19 3c1.1 0 2 .9 2 2v4h-2V5H5v14h14v-4h2v4c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V5c0-1.1.9-2 2-2h14z"/></svg>
+        </button>
+      </div>
     </div>
   </header>
 
+  <aside id="sidenav" class="sidenav">
+    <nav>
+      <button type="button" class="nav-item active" data-nav="dashboard">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+        <span>Painel</span>
+      </button>
+      <button type="button" class="nav-item" data-nav="content">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></svg>
+        <span>Conteúdo</span>
+      </button>
+      <button type="button" class="nav-item" data-nav="upload" id="nav-upload">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>
+        <span>Enviar vídeos</span>
+      </button>
+    </nav>
+    <p class="nav-foot">Jobs só seus · JWT na sessão · worker FFmpeg</p>
+  </aside>
+
   <main>
-    <section id="auth-view" class="card">
-      <h1>Entrar</h1>
-      <p class="lede">Conta própria: só você vê e baixa os seus jobs. O FFmpeg corre no worker, não nesta página.</p>
-      <form id="auth-form">
-        <label>E-mail
-          <input type="email" id="email" autocomplete="username" required>
-        </label>
-        <label>Senha (mín. 8)
-          <input type="password" id="password" autocomplete="current-password" required minlength="8">
-        </label>
-        <p id="auth-error" class="banner error hidden" role="alert"></p>
-        <div class="row">
-          <button type="submit" id="login-btn">Entrar</button>
-          <button type="button" id="register-btn" class="ghost">Criar conta</button>
-        </div>
-      </form>
+    <section id="auth-view" class="auth-panel">
+      <div class="auth-card">
+        <h1>Entrar no Studio</h1>
+        <p class="lede">Conta própria: só você vê e baixa os seus jobs. O FFmpeg corre no worker, não nesta página.</p>
+        <form id="auth-form">
+          <label>E-mail
+            <input type="email" id="email" autocomplete="username" required>
+          </label>
+          <label>Senha (mín. 8)
+            <input type="password" id="password" autocomplete="current-password" required minlength="8">
+          </label>
+          <p id="auth-error" class="banner error hidden" role="alert"></p>
+          <div class="row">
+            <button type="submit" id="login-btn">Entrar</button>
+            <button type="button" id="register-btn" class="ghost">Criar conta</button>
+          </div>
+        </form>
+      </div>
     </section>
 
     <section id="app-view" class="hidden">
-      <div class="card">
-        <h1>Enviar vídeo</h1>
-        <p class="lede">A API responde <code>202 QUEUED</code> na hora. O status sobe sozinho quando o worker termina.</p>
-        <form id="upload-form" class="drop">
-          <input type="file" id="video" accept="video/*" required>
-          <button type="submit">Enfileirar</button>
-        </form>
-        <p id="upload-msg" class="banner hidden" role="status"></p>
+      <div id="page-dashboard" class="page">
+        <header class="page-head">
+          <h1>Painel do canal</h1>
+        </header>
+        <div class="kpis">
+          <article class="kpi"><span id="kpi-queue" class="kpi-n">0</span><span class="kpi-l">Na fila</span></article>
+          <article class="kpi"><span id="kpi-run" class="kpi-n">0</span><span class="kpi-l">Processando</span></article>
+          <article class="kpi"><span id="kpi-ready" class="kpi-n">0</span><span class="kpi-l">Prontos</span></article>
+          <article class="kpi"><span id="kpi-fail" class="kpi-n">0</span><span class="kpi-l">Falhas</span></article>
+        </div>
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Atividade recente</h2>
+            <span id="inflight-count" class="muted"></span>
+          </div>
+          <div id="dash-recent" class="recent"></div>
+        </section>
       </div>
 
-      <div class="card">
-        <div class="row spread">
-          <h2>Meus vídeos</h2>
-          <span id="job-count" class="muted"></span>
+      <div id="page-content" class="page hidden">
+        <header class="page-head">
+          <h1>Conteúdo do canal</h1>
+          <span id="done-count" class="muted"></span>
+        </header>
+        <p id="app-msg" class="banner hidden" role="status"></p>
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab active" data-filter="all">Vídeos</button>
+          <button type="button" class="tab" data-filter="inflight">Em andamento</button>
+          <button type="button" class="tab" data-filter="ready">Prontos</button>
+          <button type="button" class="tab" data-filter="failed">Falhas</button>
         </div>
-        <div id="jobs" class="jobs"></div>
+        <div class="table-wrap">
+          <table class="vtable">
+            <thead>
+              <tr>
+                <th>Vídeo</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="jobs-table"></tbody>
+          </table>
+          <p id="jobs-empty" class="empty hidden">Nenhum vídeo neste filtro.</p>
+        </div>
       </div>
     </section>
   </main>
 
-  <footer>
-    Adapter de apresentação · mesma origem · JWT no sessionStorage · sem pasta pública de uploads
-  </footer>
-  <script src="/assets/app.js"></script>
+  <div id="upload-modal" class="modal hidden" role="dialog" aria-labelledby="upload-title">
+    <div class="modal-card">
+      <header>
+        <h2 id="upload-title">Enviar vídeos</h2>
+        <button type="button" id="upload-close" class="icon-btn" aria-label="Fechar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg>
+        </button>
+      </header>
+      <form id="upload-form" class="drop">
+        <input type="file" id="video" accept="video/*" multiple required>
+        <div class="drop-art" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>
+        </div>
+        <p>Arraste e solte os arquivos de vídeo para enviar</p>
+        <p class="lede">Cada arquivo vira um job <code>202 QUEUED</code>. O status atualiza sozinho.</p>
+        <fieldset class="engine-pick">
+          <legend>Motor de extração</legend>
+          <label class="engine-opt">
+            <input type="radio" name="processor" value="ffmpeg" checked>
+            <span>
+              <strong>FFmpeg</strong>
+              <small>Padrão da indústria · LGPL/GPL</small>
+            </span>
+          </label>
+          <label class="engine-opt">
+            <input type="radio" name="processor" value="gstreamer">
+            <span>
+              <strong>GStreamer</strong>
+              <small>Pipeline open source · LGPL</small>
+            </span>
+          </label>
+        </fieldset>
+        <label class="file-btn" for="video">Selecionar arquivos</label>
+        <button type="submit">Enfileirar</button>
+      </form>
+      <ul id="picked" class="picked hidden"></ul>
+      <p id="upload-msg" class="banner hidden" role="status"></p>
+    </div>
+  </div>
+
+  <script src="/assets/app.js?v=10"></script>
 </body>
 </html>

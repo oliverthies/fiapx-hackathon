@@ -21,11 +21,16 @@ func NewVideoService(jobs JobRepository, users UserRepository, store Storage, qu
 	return &VideoService{jobs: jobs, users: users, store: store, queue: queue, process: process, notify: notify}
 }
 
-func (s *VideoService) Upload(ctx context.Context, userID uuid.UUID, filename string, r io.Reader, correlationID string) (*domain.VideoJob, error) {
+func (s *VideoService) Upload(ctx context.Context, userID uuid.UUID, filename string, r io.Reader, correlationID, processor string) (*domain.VideoJob, error) {
 	job, err := domain.NewVideoJob(userID, filename, "", correlationID)
 	if err != nil {
 		return nil, err
 	}
+	engine, err := domain.ParseProcessor(processor)
+	if err != nil {
+		return nil, err
+	}
+	job.Processor = engine
 	path, err := s.store.SaveOriginal(ctx, job.ID, filename, r)
 	if err != nil {
 		return nil, err
@@ -82,7 +87,7 @@ func (s *VideoService) Process(ctx context.Context, jobID uuid.UUID) error {
 		return err
 	}
 
-	zipPath, frames, procErr := s.process.ExtractFrames(ctx, job)
+	result, procErr := s.process.ExtractFrames(ctx, job)
 	if procErr != nil {
 		_ = job.Fail(procErr.Error())
 		_ = s.jobs.Update(ctx, job)
@@ -91,8 +96,27 @@ func (s *VideoService) Process(ctx context.Context, jobID uuid.UUID) error {
 		}
 		return procErr
 	}
-	if err := job.Complete(zipPath, frames); err != nil {
+	if err := job.Complete(result.ZipRelPath, result.ThumbRelPath, result.Frames, result.ZipBytes, result.ProcessDuration); err != nil {
 		return err
 	}
 	return s.jobs.Update(ctx, job)
+}
+
+func (s *VideoService) Delete(ctx context.Context, userID, jobID uuid.UUID) error {
+	job, err := s.Get(ctx, userID, jobID)
+	if err != nil {
+		return err
+	}
+	if err := job.EnsureDeletable(); err != nil {
+		return err
+	}
+	if err := s.jobs.Delete(ctx, job.ID); err != nil {
+		return err
+	}
+	if s.store != nil {
+		_ = s.store.Remove(ctx, job.OriginalPath)
+		_ = s.store.Remove(ctx, job.ZipPath)
+		_ = s.store.Remove(ctx, job.ThumbPath)
+	}
+	return nil
 }

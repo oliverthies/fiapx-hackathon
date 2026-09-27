@@ -7,8 +7,8 @@ RUN go mod tidy && CGO_ENABLED=0 go build -o /out/api ./cmd/api
 
 FROM alpine:3.20
 RUN adduser -D -u 10001 app \
-    && apk add --no-cache ca-certificates \
-    && mkdir -p /data/uploads /data/outputs /data/temp \
+    && apk add --no-cache ca-certificates wget \
+    && mkdir -p /data/uploads /data/outputs /data/temp /data/thumbs \
     && chown -R app:app /data
 USER app
 WORKDIR /home/app

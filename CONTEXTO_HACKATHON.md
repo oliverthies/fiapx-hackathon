@@ -1,4 +1,4 @@
-# Contexto — Hackathon FIAP X (Fase 5 / SOAT)
+# Contexto: Hackathon FIAP X (Fase 5 / SOAT)
 
 | Campo | Valor |
 |-------|--------|
@@ -7,7 +7,7 @@
 | **Data do contexto** | 19/09/2026 |
 | **Enunciado** | `Challenge/POSTECH - SOAT - Fase 5 - Hacka.pdf` |
 | **Domínio anterior** | Sistema de Gestão de Oficina Mecânica (Fases 1–4) |
-| **Domínio deste hackathon** | Processamento de vídeos — **FIAP X** (sistema totalmente diferente) |
+| **Domínio deste hackathon** | Processamento de vídeos, **FIAP X** (sistema diferente da oficina) |
 
 ---
 
@@ -19,7 +19,7 @@ A empresa **FIAP X** apresentou aos investidores um protótipo que:
 2. Extrai frames / imagens
 3. Devolve um arquivo **`.zip`**
 
-Os investidores querem uma versão **produto**: o usuário envia o vídeo e faz download do zip, com arquitetura séria — não o “script de demo” da rodada de investimento.
+Os investidores querem uma versão **produto**: o usuário envia o vídeo e faz download do zip, com arquitetura de verdade. O script da rodada de investimento não basta.
 
 ### Projeto base
 
@@ -63,7 +63,7 @@ Há um **projeto base** (download no PDF) usado na apresentação. Ele **não** 
 
 - **Não** é evolução da oficina mecânica (ms-os / billing / execution).
 - **Não** precisa reutilizar entidades Cliente, OS, Mercado Pago, etc.
-- **Não** copiar namespaces EKS `oficina-*` — criar identidade FIAP X / video-processor.
+- Criar identidade FIAP X / video-processor. Não copiar namespaces EKS `oficina-*`.
 - O código da oficina serve como **referência de como fizemos**, não como base a forkear cegamente.
 
 ---
@@ -138,7 +138,7 @@ Mapa **oficina (aprendido) → FIAP X (aplicar)**.
 
 ---
 
-## 5. Esboço de arquitetura alvo (ponto de partida — não fechado)
+## 5. Esboço de arquitetura alvo (ponto de partida, ainda aberto)
 
 ```
 [Cliente]
@@ -177,7 +177,7 @@ Compensações possíveis: apagar frames temporários, marcar job FAILED, republ
 
 ---
 
-## 7. Repositórios de referência (oficina — só consulta)
+## 7. Repositórios de referência (oficina, só consulta)
 
 | Repo | Uso como referência |
 |------|---------------------|
@@ -197,7 +197,7 @@ Workspace local da oficina: `../oficina-project` (irmão desta pasta `hackathon`
 
 Ao trabalhar neste hackathon:
 
-1. **Ler este arquivo primeiro** — domínio = FIAP X / vídeos, não oficina.
+1. **Ler este arquivo primeiro.** O domínio é FIAP X / vídeos. A oficina entra só como referência de técnica.
 2. Aplicar o **mapa da seção 4**; não portar código de OS/Cliente/Mercado Pago.
 3. Preferir decisões documentáveis (ADR curto) e entregáveis do PDF.
 4. Priorizar demo que mostre: auth → upload concorrente → fila sob pico → status → zip → falha com notificação → CI + testes.

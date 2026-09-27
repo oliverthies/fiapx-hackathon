@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	localfs "github.com/oliverthies/fiapx-video-processor/internal/adapter/fs"
 	"github.com/oliverthies/fiapx-video-processor/internal/adapter/httpjwt"
 	"github.com/oliverthies/fiapx-video-processor/internal/adapter/metrics"
 	"github.com/oliverthies/fiapx-video-processor/internal/application"
@@ -22,12 +21,12 @@ import (
 type Server struct {
 	auth   *application.AuthService
 	videos *application.VideoService
-	store  *localfs.Storage
+	store  application.Storage
 	jwt    *httpjwt.Issuer
 	ready  func(context.Context) error
 }
 
-func New(auth *application.AuthService, videos *application.VideoService, store *localfs.Storage, jwt *httpjwt.Issuer, ready func(context.Context) error) http.Handler {
+func New(auth *application.AuthService, videos *application.VideoService, store application.Storage, jwt *httpjwt.Issuer, ready func(context.Context) error) http.Handler {
 	s := &Server{auth: auth, videos: videos, store: store, jwt: jwt, ready: ready}
 	r := chi.NewRouter()
 	r.Use(metrics.HTTPMiddleware)
@@ -41,6 +40,8 @@ func New(auth *application.AuthService, videos *application.VideoService, store 
 		r.Get("/videos", s.list)
 		r.Get("/videos/{id}", s.get)
 		r.Get("/videos/{id}/zip", s.download)
+		r.Get("/videos/{id}/thumb", s.thumbnail)
+		r.Delete("/videos/{id}", s.remove)
 	})
 	r.Get("/", serveIndex)
 	assets, err := fs.Sub(web.Files, "assets")
@@ -58,6 +59,7 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(data)
 }
 
@@ -121,7 +123,7 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 	if corr == "" {
 		corr = uuid.NewString()
 	}
-	job, err := s.videos.Upload(r.Context(), userID, hdr.Filename, file, corr)
+	job, err := s.videos.Upload(r.Context(), userID, hdr.Filename, file, corr, r.FormValue("processor"))
 	if err != nil {
 		mapDomain(w, err)
 		return
@@ -182,6 +184,45 @@ func (s *Server) download(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, f)
 }
 
+func (s *Server) thumbnail(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	job, err := s.videos.Get(r.Context(), userFrom(r), id)
+	if err != nil {
+		mapDomain(w, err)
+		return
+	}
+	if job.ThumbPath == "" {
+		writeErr(w, http.StatusNotFound, "thumbnail missing")
+		return
+	}
+	f, err := s.store.Open(r.Context(), job.ThumbPath)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "thumbnail missing")
+		return
+	}
+	defer f.Close()
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	_, _ = io.Copy(w, f)
+}
+
+func (s *Server) remove(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := s.videos.Delete(r.Context(), userFrom(r), id); err != nil {
+		mapDomain(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 type ctxKey int
 
 const userKey ctxKey = 1
@@ -208,7 +249,7 @@ func userFrom(r *http.Request) uuid.UUID {
 }
 
 func jobDTO(j *domain.VideoJob) map[string]any {
-	return map[string]any{
+	out := map[string]any{
 		"id":                j.ID,
 		"status":            j.Status,
 		"original_filename": j.OriginalFilename,
@@ -217,12 +258,34 @@ func jobDTO(j *domain.VideoJob) map[string]any {
 		"correlation_id":    j.CorrelationID,
 		"created_at":        j.CreatedAt,
 		"updated_at":        j.UpdatedAt,
+		"ffmpeg_ms":         j.ProcessDuration.Milliseconds(),
+		"process_ms":        j.ProcessDuration.Milliseconds(),
+		"zip_bytes":         j.ZipBytes,
+		"has_thumb":         j.ThumbPath != "",
+		"processor":         j.Processor,
 	}
+	if !j.StartedAt.IsZero() {
+		out["started_at"] = j.StartedAt
+		wait := j.StartedAt.Sub(j.CreatedAt).Milliseconds()
+		if wait < 0 {
+			wait = 0
+		}
+		out["queue_wait_ms"] = wait
+	}
+	if !j.FinishedAt.IsZero() {
+		out["finished_at"] = j.FinishedAt
+		total := j.FinishedAt.Sub(j.CreatedAt).Milliseconds()
+		if total < 0 {
+			total = 0
+		}
+		out["total_ms"] = total
+	}
+	return out
 }
 
 func mapDomain(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, domain.ErrInvalidEmail), errors.Is(err, domain.ErrInvalidPassword), errors.Is(err, domain.ErrUnsupportedMedia):
+	case errors.Is(err, domain.ErrInvalidEmail), errors.Is(err, domain.ErrInvalidPassword), errors.Is(err, domain.ErrUnsupportedMedia), errors.Is(err, domain.ErrUnknownProcessor):
 		writeErr(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, domain.ErrUserExists):
 		writeErr(w, http.StatusConflict, err.Error())
@@ -232,7 +295,7 @@ func mapDomain(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, domain.ErrJobNotFound):
 		writeErr(w, http.StatusNotFound, err.Error())
-	case errors.Is(err, domain.ErrJobNotReady):
+	case errors.Is(err, domain.ErrJobNotReady), errors.Is(err, domain.ErrJobNotDeletable):
 		writeErr(w, http.StatusConflict, err.Error())
 	default:
 		writeErr(w, http.StatusInternalServerError, "internal error")

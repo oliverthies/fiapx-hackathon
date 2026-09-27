@@ -11,5 +11,7 @@ var (
 	ErrUserExists         = errors.New("user already exists")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrJobNotReady        = errors.New("job is not ready for download")
+	ErrJobNotDeletable    = errors.New("job can only be deleted after processing finishes")
 	ErrUnsupportedMedia   = errors.New("unsupported video format")
+	ErrUnknownProcessor   = errors.New("unknown video processor")
 )

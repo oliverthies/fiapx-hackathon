@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/oliverthies/fiapx-video-processor/internal/adapter/crypto"
-	"github.com/oliverthies/fiapx-video-processor/internal/adapter/fs"
 	"github.com/oliverthies/fiapx-video-processor/internal/adapter/httpapi"
 	"github.com/oliverthies/fiapx-video-processor/internal/adapter/httpjwt"
 	"github.com/oliverthies/fiapx-video-processor/internal/adapter/postgres"
 	"github.com/oliverthies/fiapx-video-processor/internal/adapter/rabbit"
 	"github.com/oliverthies/fiapx-video-processor/internal/adapter/smtp"
+	"github.com/oliverthies/fiapx-video-processor/internal/adapter/wiring"
 	"github.com/oliverthies/fiapx-video-processor/internal/application"
 	"github.com/oliverthies/fiapx-video-processor/internal/platform"
 )
@@ -32,7 +32,7 @@ func main() {
 	}
 	defer db.Close()
 
-	store, err := fs.New(platform.Env("STORAGE_ROOT", "/data"))
+	store, storageDriver, err := wiring.NewStorage(ctx)
 	if err != nil {
 		log.Fatalf("storage: %v", err)
 	}
@@ -54,7 +54,7 @@ func main() {
 	srv := &http.Server{Addr: addr, Handler: h}
 
 	go func() {
-		log.Printf("fiapx-api listening on %s", addr)
+		log.Printf("fiapx-api listening on %s storage=%s", addr, storageDriver)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}

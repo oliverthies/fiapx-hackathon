@@ -1,5 +1,5 @@
 @startuml sequence-race-baseline
-title Corrida reproduzida — 6 uploads no mesmo segundo (16:15:53)
+title Corrida reproduzida: 6 uploads no mesmo segundo (16:15:53)
 
 skinparam defaultFontName Segoe UI
 skinparam shadowing false
@@ -24,7 +24,7 @@ G -> T : Glob("temp/.../*.png")
 note right of T : REQ5 enxerga 24 arquivos:\n12 do próprio vídeo + 12 do vídeo alheio
 
 G -> O : cria frames_20260919_161553.zip\n(nome único compartilhado)
-note right of O : ZIP entregue contém frames\nde outro upload — vazamento
+note right of O : ZIP entregue contém frames\nde outro upload (vazamento)
 
 G -> T : defer os.RemoveAll(temp/...)
 note over T #FFE0E0 : apaga o diretório enquanto\noutros requests ainda escrevem

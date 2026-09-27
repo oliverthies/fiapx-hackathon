@@ -130,7 +130,7 @@
   "time": { "from": "now-15m", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "FIAP X — escala",
+  "title": "FIAP X escala",
   "uid": "fiapx-escala",
   "version": 1
 }

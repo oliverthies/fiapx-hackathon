@@ -1,10 +1,10 @@
-# Deep dive de engenharia — baseline FIAP X
+# Deep dive de engenharia: baseline FIAP X
 
 **Diagnóstico técnico do protótipo de processamento de vídeos apresentado aos investidores**
 
 | Campo | Valor |
 |-------|-------|
-| **Objeto da análise** | `projeto-fiapx/` — `main.go` (437 linhas), `Dockerfile`, `go.mod`, `go.sum` |
+| **Objeto da análise** | `projeto-fiapx/`: `main.go` (437 linhas), `Dockerfile`, `go.mod`, `go.sum` |
 | **Natureza do artefato** | Protótipo funcional de demonstração; o próprio `Dockerfile` se declara "exemplo de como NÃO fazer" |
 | **Objetivo deste documento** | Avaliar o sistema atual contra práticas de engenharia, arquitetura, segurança e qualidade |
 | **O que este documento não é** | Não é comparação com uma solução proposta, nem justificativa de reescrita. A proposta de evolução será registrada separadamente em ADR |
@@ -15,29 +15,44 @@
 
 ---
 
-# Parte I — Enquadramento
+# Parte I: Enquadramento
 
 ## 1. Sumário executivo
 
-O baseline entrega **exatamente aquilo para que foi construído**: recebe um arquivo de vídeo por HTTP, extrai um quadro por segundo com FFmpeg, empacota os PNGs em um `.zip` e devolve o arquivo. Em um cenário de um usuário e um arquivo por vez, o caminho feliz funciona de forma previsível e rápida — 0,91 s para um vídeo de 12 segundos. Como peça de demonstração para uma rodada de investimento, cumpre seu papel.
+Com um vídeo por vez o baseline funciona. `POST /upload` grava o arquivo, o FFmpeg extrai 1 quadro por segundo e a resposta devolve o ZIP. Um vídeo de 12 segundos levou 0,91 s.
 
-O diagnóstico técnico, porém, identifica um problema de natureza diferente de "faltam recursos". Sob concorrência, **o sistema não falha de forma segura: ele corrompe e vaza dados**. Em uma rajada de oito uploads simultâneos, um cliente que enviou um vídeo de 12 segundos recebeu um ZIP com 24 imagens, sendo **12 delas quadros do vídeo de outro usuário** (seção 6 e Dimensão 4). Nenhuma das oito requisições recebeu código de erro HTTP; todas responderam `200`.
+Com dois uploads no mesmo segundo, o código mistura os arquivos. Na rajada de oito uploads, quem mandou um vídeo de 12 segundos recebeu um ZIP com 24 PNGs. Doze eram do vídeo de outra pessoa. As oito respostas foram HTTP 200. O detalhe está na seção 6.
 
-A causa raiz é uma decisão de projeto isolada e de aparência inofensiva: a identidade do trabalho é um **timestamp com precisão de um segundo**, usado simultaneamente como nome do diretório temporário e do arquivo de saída. Duas requisições no mesmo segundo compartilham área de trabalho, sobrescrevem os quadros uma da outra, e a limpeza (`defer os.RemoveAll`) de uma apaga o material da outra durante a execução do FFmpeg.
+O ponto do bug está em `projeto-fiapx/main.go`, linha 94, dentro de `handleVideoUpload`:
 
-As demais constatações se organizam em quatro grupos:
+```94:96:projeto-fiapx/main.go
+	timestamp := time.Now().Format("20060102_150405")
+	filename := fmt.Sprintf("%s_%s", timestamp, header.Filename)
+	videoPath := filepath.Join("uploads", filename)
+```
 
-**Confidencialidade.** Não existe autenticação em nenhuma das seis rotas. O endpoint `/api/status` devolve o inventário completo de artefatos de todos os usuários, e tanto os ZIPs quanto **os vídeos originais enviados** são servidos publicamente por rotas estáticas — verificamos o download de um vídeo de terceiros (5,7 MB, `video/mp4`, HTTP 200, sem credencial).
+`20060102_150405` é ano, mês, dia, hora, minuto e segundo. Não tem milissegundo nem id. Dois requests no mesmo segundo ficam com a mesma string, por exemplo `20260919_161553`. Essa string é usada em quatro caminhos:
 
-**Durabilidade.** Não há banco de dados nem volume persistente. O estado do sistema é o conteúdo de três diretórios dentro de um container efêmero. Isso não é teórico: durante esta sessão o container foi encerrado e **5 arquivos ZIP totalizando aproximadamente 375 MB desapareceram**, com o inventário voltando a `{"files":null,"total":0}`.
+| Linha | O que o código faz | O que quebra |
+|-------|--------------------|--------------|
+| 96 | Salva o vídeo em `uploads/{timestamp}_{nome}` | Dois uploads do mesmo nome no mesmo segundo gravam o mesmo arquivo. O segundo apaga o primeiro. |
+| 117 | Passa esse `timestamp` para `processVideo` | Os dois jobs passam a operar no mesmo identificador. |
+| 129–133 | Cria `temp/{timestamp}/frame_%04d.png` | Os dois FFmpeg escrevem `frame_0001.png`, `frame_0002.png` na mesma pasta. Um sobrescreve o outro. |
+| 160 | Grava `outputs/frames_{timestamp}.zip` | O ZIP de um substitui o ZIP do outro. Quem termina por último fica com a mistura. |
 
-**Recuperabilidade.** Interrompendo o container 12 segundos dentro de um trabalho de 483 quadros, o cliente recebeu `curl: (52) Empty reply from server` — sem código de erro utilizável e sem identificador para reconsultar. Como não existe registro de trabalho, não há o que marcar como falho, retomar ou reprocessar. A recuperação também é lenta: o cold start medido foi de **13,26 s**, porque a imagem não contém binário compilado.
+Na linha 131, `defer os.RemoveAll(tempDir)` apaga `temp/{timestamp}` quando o primeiro request acaba. Se o outro FFmpeg ainda está gravando, o diretório some no meio. Foi o erro `Could not open file : temp/20260919_161553/frame_0030.png`.
 
-**Capacidade.** Um único upload consome **475,66% de CPU** em uma máquina de 600% (6 vCPU), ou seja, cerca de 79% do host. Não existe folga para processar dois vídeos longos simultaneamente nesta instância, independentemente dos defeitos de concorrência. O volume de saída cresce linearmente a ~0,55 MB por segundo de vídeo, sem cota nem expiração: uma hora de vídeo projeta ~2 GB de ZIP.
+As outras falhas medidas, no mesmo código:
 
-Do ponto de vista de **estilo arquitetural** — eixo central deste diagnóstico — o baseline é um **monólito de processo único** cuja estrutura interna **não** corresponde a monólito modular, Clean Architecture, arquitetura em camadas nem hexagonal. A unidade de deploy é monolítica; o interior é um *transaction script* (Fowler) em um arquivo. A classificação completa está na seção 4.1.
+**Sem login.** Nenhuma das seis rotas pede usuário. `GET /api/status` lista os ZIPs de todo mundo. `GET /uploads/...` devolve o vídeo original. Baixamos um MP4 de 5,7 MB com HTTP 200, sem credencial.
 
-Avaliado em 13 dimensões de engenharia (Parte III), o conjunto pontua **0,7 de 5** em média, com quatro dimensões em zero: modelo de domínio, concorrência, persistência e segurança. A distinção relevante para as próximas decisões é que essas quatro não são lacunas de refinamento — são pré-condições para qualquer operação multiusuário.
+**Sem banco.** Não há Postgres nem volume. Os arquivos moram no disco do container. Ao encerrar o processo, 5 ZIPs (cerca de 375 MB) sumiram e `/api/status` voltou a `{"files":null,"total":0}`.
+
+**Sem id para retomar.** `docker kill` aos 12 s de um job de 483 quadros devolveu `curl: (52) Empty reply from server`. Não existe registro para marcar falha ou reprocessar. O cold start medido foi 13,26 s porque o `Dockerfile` usa `go run`, e a imagem recompila a cada boot.
+
+**CPU.** Um upload sozinho chegou a 475,66% de CPU numa máquina de 600% (6 vCPU), cerca de 79% do host. Dois vídeos longos ao mesmo tempo não cabem. O ZIP cresce cerca de 0,55 MB por segundo de vídeo, sem cota. Uma hora de vídeo vira cerca de 2 GB.
+
+O arquivo inteiro está em `package main`. Não há domínio, porta nem worker. A classificação está na seção 4.1. Nas 13 dimensões da Parte III a média é **0,7 de 5**. Domínio, concorrência, persistência e segurança ficaram em zero. Sem isso o sistema não atende mais de um usuário.
 
 ## 2. Metodologia e limites da análise
 
@@ -60,7 +75,7 @@ Estas restrições delimitam o alcance das conclusões:
 - **Amostra de hardware única.** Todas as medições vêm de uma máquina (6 vCPU, 8,28 GB) sob Docker Desktop/WSL2. Os números absolutos variam em outro hardware; as **relações** (linearidade do custo, proporção de CPU, taxa de colisão) são propriedades do desenho e se mantêm.
 - **Sem limites de recurso aplicados.** O container rodou sem `--cpus` ou `--memory`. Em Kubernetes com limites definidos, a saturação apareceria como *throttling* ou *OOMKill* em vez de consumo de 79% do host.
 - **Concorrência gerada localmente.** A rajada partiu da mesma máquina que hospeda o serviço, o que adiciona contenção de CPU do lado do cliente. Isso afeta a latência medida na rajada, não a ocorrência das colisões.
-- **A corrida depende de coincidência temporal.** Requisições que caem em segundos distintos não colidem. As duas requisições iniciais da rajada, separadas pelo custo de inicialização dos processos de teste, concluíram normalmente. O defeito é probabilístico e cresce com a taxa de chegada — o que o torna mais perigoso, não menos: em produção ele se manifesta de forma intermitente e difícil de reproduzir.
+- **A corrida só acontece no mesmo segundo.** REQ0 e REQ1 caíram em segundos diferentes e devolveram o ZIP certo. REQ2 a REQ7 caíram em `20260919_161553` e falharam ou misturaram frames. Quanto mais uploads por segundo, mais colisões. Em produção o bug aparece de vez em quando e some no teste seguinte.
 - **Travessia de caminho não foi reproduzida.** As tentativas contra `/download` e `/outputs` retornaram 404. Este relatório não afirma existir leitura arbitrária de arquivos.
 
 ## 3. Inventário do sistema
@@ -103,7 +118,7 @@ Seis rotas, nenhuma protegida:
 | GET | `/` | HTML embutido no binário | Não |
 | POST | `/upload` | Upload + FFmpeg + ZIP no mesmo request | Não |
 | GET | `/download/:filename` | Envia ZIP de `outputs/` | Não |
-| GET | `/api/status` | `Glob("outputs/*.zip")` — inventário global | Não |
+| GET | `/api/status` | `Glob("outputs/*.zip")`. Inventário global | Não |
 | GET | `/uploads/*filepath` | Serve estaticamente os **vídeos enviados** | Não |
 | GET | `/outputs/*filepath` | Serve estaticamente os ZIPs | Não |
 
@@ -125,7 +140,7 @@ Não há `Authorization`, cookie de sessão, `Content-Security-Policy`, `X-Conte
 | Tamanho da imagem | **852 MB** |
 | Base | `golang:1.21-alpine` (SDK completo, não runtime) |
 | Camadas relevantes | 256 MB (toolchain Go) · 237 MB (`go mod tidy`) · 129 MB (FFmpeg) · 8,46 MB (Alpine) |
-| Comando de entrada | `CMD ["go","run","main.go"]` — compila a cada inicialização |
+| Comando de entrada | `CMD ["go","run","main.go"]`. Compila a cada inicialização |
 | Usuário efetivo | vazio → **root** |
 | Healthcheck | `null` |
 | Multi-stage build | Não |
@@ -135,11 +150,11 @@ Não há `Authorization`, cookie de sessão, `Content-Security-Policy`, `X-Conte
 | Cold start até HTTP 200 | **13 260 ms** |
 | Consumo em repouso | 202,3 MB / 19 PIDs |
 
-O `go mod tidy` executado em tempo de build (em vez de `go mod download` com cache de camada) e a ausência de binário compilado explicam simultaneamente o tamanho da imagem e a lentidão de inicialização.
+O `Dockerfile` roda `go mod tidy` no build e o processo é `go run main.go`. Isso deixa a imagem em 852 MB e o cold start em 13,26 s.
 
 ---
 
-# Parte II — Arquitetura as-is
+# Parte II: Arquitetura as-is
 
 ## 4. Visão de container
 
@@ -147,46 +162,44 @@ Todo o sistema é um processo dentro de um container. Não existe segundo servi�
 
 ![Diagrama de container do baseline FIAP X](diagrams/svg/c4-container.svg)
 
-Três características desse desenho determinam quase todas as constatações posteriores:
+Três coisas nesse desenho explicam as falhas abaixo.
 
-**O FFmpeg roda dentro do request HTTP.** A conexão TCP do cliente é, na prática, o mecanismo de orquestração. Quem espera é o navegador. Não há resposta `202 Accepted`, identificador de trabalho ou consulta posterior.
+**O FFmpeg roda dentro do `POST /upload`.** `handleVideoUpload` só responde depois de `processVideo` terminar (linha 117, e o `c.JSON` na linha 123). O navegador fica esperando. Não existe `202`, id de job nem `GET` para consultar depois. Um vídeo de ~13,6 minutos segurou a conexão por 67 s.
 
-**O sistema de arquivos é o banco de dados.** Estado, resultado e histórico são o conteúdo de `uploads/`, `temp/` e `outputs/`. Como não há volume, o ciclo de vida do dado está atado ao ciclo de vida do container.
+**Os diretórios são o banco.** `uploads/`, `temp/` e `outputs/` são o único estado. O container sobe com `Mounts=[]`. Matar o container apaga os ZIPs.
 
-**Interface e processamento compartilham o mesmo deploy.** As 144 linhas de HTML/CSS/JS moram na mesma binary que executa o FFmpeg. Não é possível escalar, publicar ou proteger uma parte sem a outra.
+**A página e o FFmpeg estão no mesmo binário.** `getHTMLForm()` (linha 293) é uma string Go de 144 linhas. Mudar um botão exige recompilar o processo que roda o FFmpeg.
 
 ## 4.1 Classificação do estilo arquitetural
 
-Esta seção responde à pergunta que o restante do diagnóstico pressupõe: **qual padrão o baseline implementa, e contra quais padrões do curso ele deve ser julgado?** Sem essa classificação, é fácil tratar o sistema como “um monólito incompleto” ou como “falta de microsserviços”. Nenhuma das duas leituras é precisa.
+O baseline é um processo só. O problema não é “faltam microsserviços”. O problema é que esse processo não separa HTTP, job e FFmpeg.
 
-### Unidade de deploy: monólito — e isso, sozinho, não é um defeito
+### Um processo, um container
 
-Pelo critério de **deploy e processo**, o baseline é um monólito clássico:
+O deploy é um monólito:
 
 - um repositório, um módulo Go (`video-processor`), um `main`;
 - um container, um PID, uma porta;
-- UI, API e processamento no mesmo artefato.
+- UI, API e FFmpeg no mesmo artefato.
 
-Monólito **não é, por si, um anti-padrão**. A oficina da Fase 3 também era um monólito (`oficina-api`) e ainda assim aplicava Clean Architecture, Flyway, eventos de domínio e fronteiras internas. O curso distingue com clareza:
+A oficina da Fase 3 também era um monólito (`oficina-api`) e mesmo assim tinha domínio, Flyway e fronteiras internas. O que falta aqui é essa separação dentro do processo.
 
 | Conceito | O que significa | O baseline |
 |----------|-----------------|------------|
-| **Monólito de deploy** | Um artefato, um processo | **Sim** — e isso é aceitável para o tamanho do problema |
-| **Monólito modular** | Mesmo deploy, módulos com contratos e ownership | **Não** — não há módulos |
-| **Microsserviços** | Serviços com ciclo de vida, banco e deploy próprios | **Não** — e a ausência, neste tamanho, não é o problema principal |
+| **Monólito de deploy** | Um artefato, um processo | **Sim**. E isso é aceitável para o tamanho do problema |
+| **Monólito modular** | Mesmo deploy, módulos com contratos e ownership | **Não**. Não há módulos |
+| **Microsserviços** | Serviços com ciclo de vida, banco e deploy próprios | **Não**. Um processo basta neste tamanho. O furo é interno |
 
-Criticar o baseline por “não ser microsserviço” seria o erro inverso: fragmentar 437 linhas em três repositórios sem fronteiras internas só espalharia o *transaction script*. O julgamento correto é sobre **estrutura interna**, não sobre o número de processos.
+Quebrar as 437 linhas em três repositórios, sem separar as funções, só espalha o mesmo script. O que falta é a estrutura interna.
 
 ### Estrutura interna: *transaction script*, não modelo de domínio
 
 Martin Fowler descreve dois padrões de organização da lógica:
 
-- **Transaction Script** — um procedimento por operação, que lê entrada, executa passos e devolve resultado. É o que `handleVideoUpload` + `processVideo` fazem: um roteiro linear (receber → gravar → ffmpeg → zip → responder).
-- **Domain Model** — entidades com identidade, invariantes e transições; a aplicação orquestra, o domínio decide o que é válido.
+- **Transaction Script**. Um procedimento por operação, que lê entrada, executa passos e devolve resultado. É o que `handleVideoUpload` + `processVideo` fazem: um roteiro linear (receber → gravar → ffmpeg → zip → responder).
+- **Domain Model**. Entidades com identidade, invariantes e transições; a aplicação orquestra, o domínio decide o que é válido.
 
-O baseline é **Transaction Script puro**. Não há agregado `VideoJob`, não há invariante (“um trabalho pertence a um usuário”), não há transição de estado. `VideoRequest` e `ProcessingResult` são DTOs de transporte; o primeiro sequer é usado. Isso explica por que a corrida de timestamp não viola “regra de domínio”: **não existe regra de domínio para violar**. O procedimento simplesmente compartilha um diretório.
-
-Para um protótipo de um clique, Transaction Script é o padrão **correto e honesto**. O diagnóstico é que o mesmo padrão foi levado a um contexto (concorrência, multi-tenant implícito, persistência de resultado) no qual ele deixa de ser suficiente.
+Não existe `VideoJob`. Não existe regra do tipo “um trabalho pertence a um usuário” nem estado `UPLOADED`, `PROCESSING`, `READY`, `FAILED`. `VideoRequest` está declarado e nenhum handler usa. `ProcessingResult` só carrega a resposta HTTP. A corrida do timestamp acontece porque o código não tem id de job: os dois requests entram na mesma pasta.
 
 ### Clean Architecture: não atende
 
@@ -197,13 +210,11 @@ Mapeamento das camadas sobre o código real:
 | Camada (Clean / oficina) | O que deveria existir | O que existe no `main.go` |
 |--------------------------|----------------------|---------------------------|
 | **Domínio** | `VideoJob`, estados, invariantes | Ausente |
-| **Aplicação** | caso de uso “processar vídeo”, portas | Ausente — o handler *é* o caso de uso |
+| **Aplicação** | caso de uso “processar vídeo”, portas | Ausente. O handler *é* o caso de uso |
 | **Adaptador de entrada** | HTTP / HTML | `handleVideoUpload`, `getHTMLForm` **no mesmo arquivo** |
 | **Adaptador de saída** | FFmpeg, disco, e-mail | `exec.Command` e `os.*` **dentro** de `processVideo` |
 
-A dependência aponta **para fora**: a função que deveria ser o caso de uso importa `os/exec` e escreve `fmt.Printf`. Não há `type VideoProcessor interface`. Sem porta, não há como substituir FFmpeg, gravar em S3 ou publicar na fila sem editar o núcleo.
-
-Conclusão formal: **o baseline não implementa Clean Architecture**, nem uma versão reduzida dela. Implementa um único adaptador que contém tudo.
+`processVideo` importa `os/exec`, chama `exec.Command("ffmpeg", ...)` e `os.MkdirAll`, e escreve com `fmt.Printf`. Não existe `type VideoProcessor interface`. Trocar o FFmpeg, gravar em S3 ou publicar numa fila exige editar essa função.
 
 ### Arquitetura em camadas e hexagonal: camadas colapsadas
 
@@ -221,17 +232,17 @@ domínio (inexistente)
 infra (ffmpeg, filesystem, log)
 ```
 
-Não há pacote `domain`, `application` ou `adapter`. Não há injeção de dependência. O “centro” do sistema é `processVideo()`, que é precisamente a função mais acoplada à infraestrutura.
+Não há pacote `domain`, `application` nem `adapter`. `processVideo()` (linha 126) é quem chama o FFmpeg, lê o disco e monta o ZIP.
 
 ![Camadas esperadas versus camadas reais do baseline](diagrams/svg/architecture-layers.svg)
 
-### O que o baseline *não* é — para não forçar o rótulo errado
+### Checklist de padrões
 
 | Padrão | Atende? | Por quê |
 |--------|---------|---------|
 | Monólito de deploy | **Sim** | Um processo, um artefato |
 | Monólito modular | Não | Sem módulos, sem contratos internos |
-| Clean Architecture | Não | Sem domínio, sem portas, dependência invertida |
+| Clean Architecture | Não | Sem domínio e sem porta. `processVideo` chama `os/exec` |
 | Camadas (n-tier) | Não | Camadas colapsadas no `package main` |
 | Hexagonal / ports & adapters | Não | Zero interfaces |
 | MVC / separação UI | Não | HTML/CSS/JS embutidos na API |
@@ -240,37 +251,33 @@ Não há pacote `domain`, `application` ou `adapter`. Não há injeção de depe
 | CQRS | Não | Mesmo caminho lê e escreve; “status” é `Glob` no disco |
 | Saga / orquestração de processo | Não | Não há processo de longa duração modelado |
 
-### Crítica arquitetural (o que importa para o trabalho)
+### O que falta no código
 
-Três críticas independentes, em ordem de gravidade estrutural:
+1. **Não há job.** Sem entidade e sem estado, não há onde gravar dono, idempotência nem “qual o status do meu vídeo”. Mais uma rota HTTP não cria isso.
+2. **FFmpeg, disco e HTTP estão na mesma função.** `handleVideoUpload` (linha 75) recebe o arquivo e chama `processVideo` (linha 117). Fila, worker ou S3 significam reescrever essas duas funções.
+3. **Tudo roda no mesmo PID.** Um upload mediu ~79% da CPU do host. Não há módulo separado para escalar só o processamento.
 
-1. **Ausência de fronteira de domínio.** Sem entidade e sem estados, o sistema não tem onde aplicar regra, autorização, idempotência ou observabilidade de negócio. Isso não se resolve com mais endpoints.
-2. **Acoplamento do caso de uso à infraestrutura.** FFmpeg, disco e HTTP estão na mesma função. Qualquer mudança de estilo (fila, worker, object storage) é reescrita do núcleo, não troca de adaptador.
-3. **Deploy monolítico sem modularidade interna.** O monólito seria defensável se houvesse módulos (auth, job, processing, delivery). Sem eles, o único eixo de escala é “mais CPU no mesmo PID” — e as medições mostram que um upload já consome ~79% do host.
-
-O que **não** se critica aqui: a decisão de um único deployável neste estágio. Um monólito modular com Clean Architecture internamente atenderia o curso e o problema sem exigir microsserviços no dia um.
+Um monólito com domínio, portas e worker interno resolve o problema deste tamanho. Microsserviço não é o que falta.
 
 ## 5. Visão de componentes
 
 ![Componentes internos de main.go](diagrams/svg/components.svg)
 
-O arquivo é legível e a nomenclatura é clara — um leitor entende o fluxo em poucos minutos. O problema não é organização superficial, é **ausência de fronteiras**.
+O arquivo se lê fácil. As falhas estão em duas funções.
 
-Duas funções concentram responsabilidades heterogêneas. `handleVideoUpload()` faz parsing de multipart, gravação em disco, orquestração do processamento e formatação da resposta. `processVideo()` define a identidade do trabalho, invoca um processo externo, varre o sistema de arquivos, compacta o resultado e escreve log. São as duas funções onde todos os defeitos observados se originam.
+`handleVideoUpload()` (linha 75) faz quatro coisas seguidas: lê o multipart, grava em `uploads/`, chama o processamento e monta o JSON. `processVideo()` (linha 126) escolhe a pasta pelo timestamp, chama o FFmpeg, lista os PNGs, cria o ZIP e imprime o log. A corrida, o vazamento e o HTTP 200 saem dessas duas funções.
 
-Três funções são coesas e testáveis isoladamente: `isValidVideoFile()`, `createZipFile()` e `addFileToZip()` recebem entrada, produzem saída ou erro, e não dependem de estado global. Elas demonstram que o problema é estrutural, não de habilidade — o autor sabe escrever função pura; apenas não havia razão, em um protótipo, para aplicar isso ao caminho principal.
+`isValidVideoFile()`, `createZipFile()` e `addFileToZip()` recebem argumento e devolvem erro. Dá para testar as três sozinhas. O caminho do upload não usa esse formato.
 
-Não existe nenhuma interface (`type X interface`). O FFmpeg está acoplado por `exec.Command` literal, os caminhos `"uploads"`, `"temp"`, `"outputs"` são strings embutidas, a taxa `fps=1` é fixa e a porta `8080` é constante.
+Não existe `type X interface`. O binário está fixo em `exec.Command("ffmpeg", ...)`, os diretórios `"uploads"`, `"temp"` e `"outputs"` são string no código, `fps=1` é fixo e a porta é `8080`.
 
 ## 6. O comportamento sob concorrência
 
-Esta é a constatação central do diagnóstico e merece a sequência completa.
+O Gin atende cada `POST /upload` numa goroutine. Não há mutex, lock de arquivo nem id. Se dois requests caem no mesmo segundo, os dois entram no bloco abaixo com o mesmo `timestamp`.
 
 ![Sequência da corrida com seis uploads no mesmo segundo](diagrams/svg/sequence-race.svg)
 
-O mecanismo, linha por linha do código:
-
-```126:134:projeto-fiapx/main.go
+```126:133:projeto-fiapx/main.go
 func processVideo(videoPath, timestamp string) ProcessingResult {
 	fmt.Printf("Iniciando processamento: %s\n", videoPath)
 
@@ -281,7 +288,16 @@ func processVideo(videoPath, timestamp string) ProcessingResult {
 	framePattern := filepath.Join(tempDir, "frame_%04d.png")
 ```
 
-O `timestamp` chega de `handleVideoUpload()` como `time.Now().Format("20060102_150405")` — resolução de um segundo. Ele é usado para três finalidades que exigiriam exclusividade: nome do diretório temporário, padrão de nome dos quadros (`frame_%04d.png`, reiniciando em 1 para cada vídeo) e nome do ZIP de saída.
+`os.MkdirAll` na mesma pasta não falha: o segundo request reusa o diretório do primeiro. O padrão `frame_%04d.png` faz o FFmpeg recomeçar em `frame_0001.png` nas duas execuções. Os PNGs de um vídeo substituem os do outro.
+
+O ZIP usa a mesma string:
+
+```160:161:projeto-fiapx/main.go
+	zipFilename := fmt.Sprintf("frames_%s.zip", timestamp)
+	zipPath := filepath.Join("outputs", zipFilename)
+```
+
+`createZipFile` abre esse path com `os.Create` (linha 188), que trunca o arquivo se ele já existe. O último a terminar fica com o ZIP.
 
 O resultado medido com oito uploads simultâneos:
 
@@ -292,7 +308,7 @@ O resultado medido com oito uploads simultâneos:
 | REQ2 | short 12 s | **200** | `false` | 4,12 s | `open temp/20260919_161553/frame_0019.png: no such file or directory` |
 | REQ3 | short 12 s | **200** | `false` | 4,10 s | `frame_0011.png: no such file or directory` |
 | REQ4 | short 12 s | **200** | `false` | 4,03 s | `frame_0021.png: no such file or directory` |
-| REQ5 | short 12 s | **200** | `true` | 4,07 s | **ZIP com 24 quadros — 12 de outro vídeo** |
+| REQ5 | short 12 s | **200** | `true` | 4,07 s | **ZIP com 24 quadros. 12 de outro vídeo** |
 | REQ6 | long 40 s | **200** | `false` | 4,25 s | `ffmpeg exit status 251` · `Could not open file … frame_0030.png` |
 | REQ7 | long 40 s | **200** | `false` | 4,25 s | `ffmpeg exit status 251` · `Conversion failed!` |
 
@@ -309,17 +325,17 @@ frame_0002.png  365815 bytes   │ idênticos byte a byte aos quadros
 frame_0012.png  657074 bytes   ┘ os ZIPs de REQ0 e REQ1)
 frame_0013.png  511897 bytes   ┐
 frame_0014.png  513949 bytes   │ não podem pertencer a um vídeo de
-...                            │ 12 s com fps=1 — vêm do vídeo de
+...                            │ 12 s com fps=1. Vêm do vídeo de
 frame_0024.png  647808 bytes   ┘ 40 s enviado por outra requisição
 ```
 
-Um vídeo de 12 segundos a um quadro por segundo produz no máximo 12 imagens. As entradas 13 a 24 só podem ter origem em outro upload. O cliente recebeu `success: true` e um arquivo aparentemente válido: **não existe sinal algum, na resposta ou no artefato, que permita perceber a contaminação**.
+Um vídeo de 12 segundos a 1 fps gera no máximo 12 PNGs. `frame_0013.png` até `frame_0024.png` são do vídeo de 40 s que caiu no mesmo segundo. A resposta foi `success: true`, HTTP 200, sem campo de erro. O cliente não tem como ver que o ZIP misturou os dois vídeos.
 
 O arquivo está preservado em `docs/evidence/PROVA-zip-contaminado-24frames.zip`.
 
 ### Por que o FFmpeg falhou
 
-As requisições 6 e 7 não falharam por vídeo inválido. O `stderr` mostra o processamento avançando normalmente e sendo interrompido:
+REQ6 e REQ7 não falharam por arquivo inválido. O FFmpeg já tinha escrito 28 quadros quando o arquivo sumiu:
 
 ```
 frame=   28 fps=7.6 q=-0.0 size=N/A time=00:00:27.00 bitrate=N/A speed=7.35x
@@ -328,107 +344,110 @@ frame=   28 fps=7.6 q=-0.0 size=N/A time=00:00:27.00 bitrate=N/A speed=7.35x
 Conversion failed!
 ```
 
-O diretório foi removido **enquanto o FFmpeg escrevia nele** — o `defer os.RemoveAll(tempDir)` de uma das requisições que terminou primeiro. A compensação de um trabalho destrói o trabalho em andamento de outro.
+Quem terminou primeiro executou o `defer os.RemoveAll(tempDir)` da linha 131 e apagou `temp/20260919_161553`. O FFmpeg da outra requisição ainda tentava criar `frame_0030.png` nessa pasta. Por isso o `exit status 251`.
 
-### Degradação de latência
+### Latência na rajada
 
-A mesma operação custa 0,86–1,28 s isolada e 4,03–4,25 s dentro da rajada: aproximadamente **4x** de degradação por contenção de CPU. Não há fila, limite de concorrência ou *backpressure* — a admissão é ilimitada e a degradação é repassada integralmente a todos os clientes.
+Isolado, o mesmo vídeo de 12 s leva 0,86–1,28 s. Dentro da rajada levou 4,03–4,25 s, cerca de 4x. Não há fila nem limite de jobs. Cada `POST /upload` dispara um FFmpeg na hora, e os oito disputam a mesma CPU.
 
 ## 7. Ciclo de vida do dado
 
 ![Ciclo de vida do dado e comportamento na falha](diagrams/svg/dataflow-lifecycle.svg)
 
-A assimetria entre sucesso e falha é relevante. No sucesso, o vídeo original é apagado e o diretório temporário é limpo. Na falha, o `os.Remove(videoPath)` não é alcançado e **o vídeo permanece indefinidamente** — confirmamos dois órfãos (5,5 MB e 68 MB) após os testes. Nenhum dos caminhos aplica expiração ao ZIP resultante: o diretório de saída acumulou 491,8 MB em cerca de uma hora de uso exploratório.
+No sucesso, a linha 120 chama `os.Remove(videoPath)` e o `defer` da linha 131 apaga `temp/`. Na falha, o `return` acontece antes da linha 120, então o MP4 fica em `uploads/` para sempre. Depois dos testes ficaram dois arquivos órfãos: 5,5 MB e 68 MB. O ZIP em `outputs/` não tem expiração em nenhum dos dois caminhos. Em cerca de uma hora de teste a pasta chegou a 491,8 MB.
 
 ---
 
-# Parte III — Análise por dimensão
+# Parte III: Análise por dimensão
 
-Cada dimensão segue a mesma estrutura: a prática de referência adotada nas fases anteriores do curso, o que foi observado, o que o baseline acerta, onde ele é frágil, o risco resultante e uma estimativa do esforço de correção.
+Cada dimensão abaixo diz o que o código faz, onde, e o que quebra.
 
-## Dimensão 1 — Estilo arquitetural e separação de responsabilidades
+## Dimensão 1: Estilo arquitetural e separação de responsabilidades
 
-A classificação formal (monólito de deploy × *transaction script* interno × não-Clean / não-hexagonal) está na seção 4.1. Aqui o julgamento é de maturidade.
+A classificação está na seção 4.1. Aqui fica a nota.
 
-**Referência.** Clean Architecture e monólito modular das Fases 3–4: domínio sem dependências de framework, casos de uso na aplicação, adaptadores na borda, regra de dependência apontando para dentro. Microsserviços só depois que os bounded contexts já existem no monólito.
+**Referência.** Fases 3–4: domínio sem framework, caso de uso na aplicação, adaptador na borda. Microsserviço só depois que essa separação já existe no monólito.
 
-**Observado.** Unidade de deploy monolítica (adequada). Estrutura interna: *transaction script* em um arquivo, camadas colapsadas, zero portas. `processVideo()` depende de `os/exec` e de `fmt`. A apresentação (144 linhas de HTML) vive no mesmo pacote que o FFmpeg.
+**Observado.** Um processo. `processVideo()` importa `os/exec` e `fmt`. As 144 linhas de HTML estão em `getHTMLForm()`, no mesmo arquivo do FFmpeg.
 
-**Pontos positivos.** O monólito de um processo é o tamanho certo para o problema atual — não se critica “falta de microsserviço”. O código é linear e legível; três funções já são coesas. Go + Gin são escolha coerente com um único binário.
+**Pontos positivos.** Um processo basta para este problema. `isValidVideoFile`, `createZipFile` e `addFileToZip` já estão separadas. Go e Gin cabem num binário.
 
-**Fragilidades.** Sem módulo interno, sem interface, sem domínio. Trocar FFmpeg, disco ou o estilo síncrono exige editar o núcleo. Não é possível testar o caso de uso sem o sistema de arquivos e o binário `ffmpeg`. SOLID: responsabilidade única quebrada em `handleVideoUpload` e `processVideo`; inversão de dependência inexistente.
+**Fragilidades.** Não há pacote nem interface. Trocar o FFmpeg, o disco ou tirar o processamento do HTTP exige editar `handleVideoUpload` (linha 75) e `processVideo` (linha 126). Um teste desse fluxo precisa do disco e do binário `ffmpeg`.
 
-**Risco.** Toda evolução arquitetural (fila, worker, auth, persistência) concentra-se no mesmo par de funções onde já estão os defeitos de concorrência. O custo de mudança é estrutural.
+**Risco.** Fila, worker, login e banco entram nessas duas funções, que já misturam arquivos quando dois uploads caem no mesmo segundo.
 
-**Esforço de correção.** Alto — reestruturação para monólito modular (ou dois processos API/worker) com portas, não um ajuste pontual.
+**Esforço de correção.** Alto. Separar API e worker com portas. Não é um ajuste de uma linha.
 
-**Maturidade: 1/5** — o ponto vem do deploy monolítico consciente e da legibilidade; não vem de aderência a Clean Architecture ou a camadas.
+**Maturidade: 1/5.** Um processo e código legível. Sem domínio e sem porta.
 
-## Dimensão 2 — Modelo de domínio e estados
+## Dimensão 2: Modelo de domínio e estados
 
 **Referência.** Agregado com máquina de estados explícita e transições validadas, como `ServiceOrder` e `ServiceOrderStatus` na oficina, com histórico e momento de entrada em cada estado.
 
-**Observado.** Não existe entidade que represente o trabalho de processamento. Existem `VideoRequest` e `ProcessingResult`, ambos DTOs de transporte — e `VideoRequest` não é usado em nenhum handler. O "estado" é implícito: se há ZIP no diretório, terminou; se não há, não se sabe distinguir entre nunca enviado, em processamento e falhado.
+**Observado.** Não existe struct de job. `VideoRequest` e `ProcessingResult` são o JSON da resposta. Nenhum handler usa `VideoRequest`. Se o ZIP está em `outputs/`, o `/api/status` mostra o arquivo. Se não está, o código não distingue “nunca enviado”, “FFmpeg rodando” e “falhou”.
 
-**Pontos positivos.** `ProcessingResult` é coerente e bem tipado, transportando `success`, `message`, `zip_path`, `frame_count` e `images`. É uma base razoável para um futuro DTO de resposta.
+**Pontos positivos.** `ProcessingResult` já traz `success`, `message`, `zip_path`, `frame_count` e `images`. Serve como corpo da resposta.
 
-**Fragilidades.** Sem a entidade, não há como responder "qual o estado do meu vídeo", atribuir dono, registrar tentativa, medir duração por etapa ou decidir o que reprocessar. A ausência de `UPLOADED → QUEUED → PROCESSING → READY/FAILED` não é uma lacuna de recurso: é a razão pela qual as outras dimensões não têm onde se ancorar.
+**Fragilidades.** Não há rota “qual o estado do meu vídeo”. Não há dono, tentativa nem duração. Sem estados `UPLOADED`, `QUEUED`, `PROCESSING`, `READY` e `FAILED`, login, fila e métrica de job não têm registro para gravar.
 
-**Risco.** Nenhuma observabilidade de negócio, nenhuma recuperação, nenhuma auditoria são possíveis.
+**Risco.** Não dá para auditar quem enviou o quê, nem retomar o job que o `docker kill` cortou.
 
-**Esforço de correção.** Médio — modelar a entidade e suas transições é direto; o custo está em propagá-la por persistência e API.
+**Esforço de correção.** Médio. Modelar a entidade e suas transições é direto; o custo está em propagá-la por persistência e API.
 
 **Maturidade: 0/5**
 
-## Dimensão 3 — Integração e comunicação
+## Dimensão 3: Integração e comunicação
 
 **Referência.** Comunicação assíncrona por mensageria para trabalho de longa duração (RabbitMQ na Saga da Fase 4), com confirmação após conclusão, e REST para consulta de estado.
 
-**Observado.** Um único estilo: HTTP síncrono. A admissão do trabalho e sua execução são a mesma operação. A resposta só chega depois que o FFmpeg e a compactação terminam — medimos 67 s para um vídeo de ~13,6 minutos.
+**Observado.** Um único estilo: HTTP síncrono. A admissão do trabalho e sua execução são a mesma operação. A resposta só chega depois que o FFmpeg e a compactação terminam. Medimos 67 s para um vídeo de ~13,6 minutos.
 
 **Pontos positivos.** O contrato de upload é simples e universal (`multipart/form-data`), sem SDK ou protocolo proprietário. A API responde JSON consistente. Para um arquivo pequeno e um cliente, a experiência é imediata.
 
-**Fragilidades.** Não há *buffer* entre chegada e execução, portanto não há como absorver picos. Não há limite de concorrência, então a saturação é repassada ao cliente como latência. Não há idempotência: reenviar o mesmo arquivo cria trabalho duplicado com nome novo. Não há confirmação de processamento dissociada da conexão TCP — se a conexão cai, o resultado do trabalho é indeterminado para o cliente.
+**Fragilidades.** `handleVideoUpload` só chama `c.JSON` depois do FFmpeg (linha 123). Não há fila. Reenviar o mesmo arquivo gera outro timestamp e outro ZIP. Se o cliente desconecta no meio, não existe id para consultar o resultado.
 
-**Risco.** Acima de ~30 s de processamento, proxies e navegadores começam a encerrar a conexão antes da resposta. Nossa curva mostra que isso ocorre em vídeos acima de ~8 minutos.
+**Risco.** Acima de ~30 s, proxy e navegador cortam a conexão. Na medição, um vídeo de ~13,6 minutos segurou o `POST` por 67 s.
 
-**Esforço de correção.** Médio-alto — introduzir broker, worker e protocolo de aceite assíncrono.
+**Esforço de correção.** Médio-alto. Introduzir broker, worker e protocolo de aceite assíncrono.
 
 **Maturidade: 1/5**
 
-## Dimensão 4 — Concorrência e consistência
+## Dimensão 4: Concorrência e consistência
 
-**Referência.** Identificadores únicos (UUID), isolamento de área de trabalho por execução, idempotência registrada, e — na oficina — controle explícito de processo com `saga_process`.
+**Referência.** Identificadores únicos (UUID), isolamento de área de trabalho por execução, idempotência registrada, e, na oficina, controle explícito de processo com `saga_process`.
 
-**Observado.** Documentado em detalhe na seção 6. A identidade do trabalho tem resolução de um segundo e é usada como nome de diretório e de arquivo. O Gin processa requisições em *goroutines* paralelas, mas o recurso compartilhado (o diretório) não tem qualquer proteção: nem mutex, nem lock de arquivo, nem sufixo aleatório.
+**Observado.** Detalhe na seção 6. O id é a linha 94, `time.Now().Format("20060102_150405")`. O Gin atende cada request numa goroutine. `temp/{timestamp}` não tem mutex, lock de arquivo nem sufixo aleatório.
 
-**Pontos positivos.** O paralelismo do runtime funciona: as oito requisições foram atendidas concorrentemente em 18,6 s de tempo total, e o FFmpeg explora múltiplos núcleos. A infraestrutura de concorrência existe — falta apenas o isolamento de recursos.
+**Pontos positivos.** As oito requisições rodaram juntas e o relógio total foi 18,6 s. O FFmpeg usa vários núcleos. O que falta é cada job ter a própria pasta.
 
-**Fragilidades.** Três modos de falha distintos foram reproduzidos: quadros de um vídeo entregues no ZIP de outro cliente (perda de confidencialidade e integridade); remoção do diretório durante a escrita do FFmpeg (falha do trabalho alheio); sobrescrita do arquivo de upload quando nome e segundo coincidem. O nome do ZIP também colide, de forma que o último a escrever vence silenciosamente.
+**Fragilidades.** A mesma string gerou três falhas:
+- REQ5 recebeu 12 PNGs de outro vídeo, porque a linha 160 grava `frames_{timestamp}.zip` e o `os.Create` da linha 188 trunca o arquivo anterior.
+- REQ6 e REQ7: o `defer os.RemoveAll` da linha 131 apagou `temp/20260919_161553` enquanto o outro FFmpeg escrevia `frame_0030.png`.
+- Dois uploads com o mesmo nome no mesmo segundo gravam o mesmo path na linha 96. O segundo `os.Create` apaga o MP4 do primeiro.
 
-**Risco.** **Crítico.** Este é o único achado que produz corrupção silenciosa e cruzamento de dados entre usuários. Em produção, apareceria como reclamação esporádica e praticamente irreprodutível — a pior categoria de defeito.
+**Risco.** **Crítico.** O cliente recebe HTTP 200 e um ZIP com cara de válido. O bug só aparece quando dois uploads caem no mesmo segundo, então o teste do dia seguinte pode passar.
 
 **Esforço de correção.** Baixo para mitigar (UUID por trabalho isola o diretório e o arquivo), alto para resolver adequadamente (fila com concorrência controlada e propriedade exclusiva de recursos).
 
 **Maturidade: 0/5**
 
-## Dimensão 5 — Persistência e durabilidade
+## Dimensão 5: Persistência e durabilidade
 
 **Referência.** PostgreSQL com migrações versionadas (Flyway), propriedade de dados por serviço, e armazenamento de objetos para binários.
 
-**Observado.** Nenhum mecanismo de persistência além do sistema de arquivos do container, sem volume (`Mounts=[]`) e com `--rm` no comando documentado. O "esquema de dados" é a convenção de nomes dos três diretórios.
+**Observado.** O único disco é o do container. `docker inspect` mostrou `Mounts=[]` e o comando documentado usa `--rm`. O que o código chama de dado são as pastas `uploads/`, `temp/` e `outputs/`.
 
-**Pontos positivos.** A escolha de manter os binários fora da memória (streaming para disco e depois para o ZIP) evita estourar RAM em arquivos grandes: o consumo máximo observado foi 607 MB processando 483 quadros. É uma decisão correta que se mantém em qualquer arquitetura futura.
+**Pontos positivos.** O vídeo vai para disco, não para a RAM. No job de 483 quadros o pico foi 607 MB. Isso continua valendo com banco ou S3.
 
-**Fragilidades.** Perda total na destruição do container — observada, não hipotética: o inventário voltou a `{"files":null,"total":0}` e cerca de 375 MB de ZIPs desapareceram quando o processo foi encerrado. Sem metadados, não é possível saber quem enviou o quê, quando, com que resultado. Sem transação, `outputs/` pode conter um ZIP cuja origem falhou parcialmente (foi o caso do arquivo contaminado).
+**Fragilidades.** Encerrar o container apagou os arquivos: `/api/status` voltou a `{"files":null,"total":0}` e cerca de 375 MB de ZIP sumiram. Não há tabela com usuário, hora e resultado. O ZIP da seção 6 ficou em `outputs/` com os frames misturados, porque o `os.Create` não está numa transação.
 
-**Risco.** Qualquer reinício, atualização, evicção de pod ou reciclagem de nó apaga os resultados dos clientes. Não há backup possível porque não há fonte de verdade.
+**Risco.** Restart, update ou evicção do container apaga o ZIP do cliente. A única cópia é o disco desse container. Não há de onde restaurar.
 
-**Esforço de correção.** Médio — banco para metadados, volume ou armazenamento de objetos para binários.
+**Esforço de correção.** Médio. Banco para metadados, volume ou armazenamento de objetos para binários.
 
 **Maturidade: 0/5**
 
-## Dimensão 6 — Segurança
+## Dimensão 6: Segurança
 
 **Referência.** Autenticação por usuário e senha com JWT, autorização por escopo de proprietário, validação de conteúdo, segredos externalizados, contêineres sem privilégio.
 
@@ -453,33 +472,33 @@ A classificação formal (monólito de deploy × *transaction script* interno ×
 
 Mapeando ao OWASP API Security Top 10, os achados concentram-se em **API1 (autorização de objeto quebrada)**, **API2 (autenticação quebrada)**, **API3 (exposição excessiva de dados)** e **API4 (ausência de limitação de recursos)**.
 
-**Pontos positivos.** Há uma verificação de extensão explícita, que rejeita `.txt` corretamente com HTTP 400 em 12 ms. As tentativas de travessia de caminho (`/download/../etc/passwd`, `/outputs/../main.go` e variantes codificadas) retornaram 404 — o roteamento do Gin não permitiu escapar dos diretórios servidos. O código não constrói SQL nem executa shell com entrada do usuário: o `exec.Command` passa argumentos em vetor, sem interpretação por shell, o que evita injeção de comando.
+**Pontos positivos.** Há uma verificação de extensão explícita, que rejeita `.txt` corretamente com HTTP 400 em 12 ms. As tentativas de travessia de caminho (`/download/../etc/passwd`, `/outputs/../main.go` e variantes codificadas) retornaram 404. O roteamento do Gin não permitiu escapar dos diretórios servidos. O código não constrói SQL nem executa shell com entrada do usuário: o `exec.Command` passa argumentos em vetor, sem interpretação por shell, o que evita injeção de comando.
 
-**Fragilidades.** A ausência de identidade é o eixo: sem usuário não há dono, e sem dono todo controle de acesso é impossível por construção. O achado S4 merece ênfase — não é apenas o resultado derivado que vaza, é **o material original enviado pelo cliente**, cujo nome é previsível (`{timestamp}_{nome original}`) e cujos timestamps são revelados por `/api/status`.
+**Fragilidades.** Não existe usuário. Sem usuário, as rotas não filtram dono. S4: `GET /uploads/{timestamp}_{nome}` devolve o MP4 original. O nome sai da linha 95 e `/api/status` publica a lista.
 
-**Risco.** Qualquer pessoa com acesso de rede ao serviço lê e baixa todo o conteúdo de todos os usuários.
+**Risco.** Quem alcança a porta 8080 lista e baixa o vídeo e o ZIP de qualquer upload.
 
-**Esforço de correção.** Médio — autenticação, escopo por proprietário, validação de conteúdo real, limites e endurecimento do container são trabalho conhecido e bem delimitado.
+**Esforço de correção.** Médio. Autenticação, escopo por proprietário, validação de conteúdo real, limites e endurecimento do container são trabalho conhecido e bem delimitado.
 
 **Maturidade: 0/5**
 
-## Dimensão 7 — Confiabilidade e resiliência
+## Dimensão 7: Confiabilidade e resiliência
 
 **Referência.** Timeouts, política de retentativa, fila de mensagens mortas, compensação transacional e recuperação após reinício.
 
 **Observado.** Erros são capturados e devolvidos ao cliente, mas não existe timeout, retentativa, circuit breaker ou recuperação. O teste de interrupção (container encerrado 12 s dentro de um trabalho de 483 quadros) produziu: `curl: (52) Empty reply from server`, nenhum registro de trabalho, perda do ZIP de 65,7 MB já concluído de um trabalho anterior, e desaparecimento do container.
 
-**Pontos positivos.** O tratamento de erro no código é consistente: cada operação de I/O tem seu `if err != nil` e produz mensagem específica. A limpeza por `defer os.RemoveAll(tempDir)` demonstra intenção correta de compensação — o problema é o escopo do recurso, não a ideia. O `os.Remove(videoPath)` condicionado ao sucesso evita descartar a entrada de um trabalho que falhou.
+**Pontos positivos.** Cada I/O tem `if err != nil` e uma mensagem própria. Com um único job naquele segundo, o `defer os.RemoveAll` da linha 131 apaga só a pasta dele. O `os.Remove(videoPath)` só roda se `result.Success` (linhas 119–121), então uma falha do FFmpeg não apaga o MP4 de entrada.
 
-**Fragilidades.** A compensação de um trabalho interfere em outro (seção 6). Na falha, a entrada não é liberada, acumulando lixo. Não há estado para retomar: um trabalho interrompido simplesmente deixa de existir. O cold start de 13,26 s prolonga qualquer indisponibilidade.
+**Fragilidades.** Com dois jobs no mesmo segundo, esse `RemoveAll` apaga a pasta do outro (seção 6). Na falha, a linha 120 não roda e o MP4 fica em `uploads/`. Não há registro para retomar. Cada subida gasta 13,26 s de cold start porque o `CMD` é `go run main.go`.
 
-**Risco.** Toda falha é definitiva e silenciosa para o operador; toda reinicialização perde resultados entregues.
+**Risco.** O operador não vê a falha no log de negócio. O cliente vê conexão cortada ou HTTP 200. Reiniciar o container apaga ZIP que já tinha sido entregue.
 
-**Esforço de correção.** Médio-alto — depende de persistência e fila para ter onde registrar e reprocessar.
+**Esforço de correção.** Médio-alto. Depende de persistência e fila para ter onde registrar e reprocessar.
 
 **Maturidade: 1/5**
 
-## Dimensão 8 — Performance e escalabilidade
+## Dimensão 8: Performance e escalabilidade
 
 **Referência.** Escala horizontal por réplicas sem estado, com armazenamento compartilhado e trabalho distribuído por fila.
 
@@ -494,7 +513,7 @@ Mapeando ao OWASP API Security Top 10, os achados concentram-se em **API1 (autor
 | 120 s | 16,38 MB | 121 | 65,72 MB | 6,17 s |
 | 240 s | 32,77 MB | 241 | 131,91 MB | 12,92 s |
 | 480 s | 65,53 MB | 483 | 265,34 MB | 29,60 s |
-| ~817 s | — | 817 | 367,70 MB | 67,00 s |
+| ~817 s | n/d | 817 | 367,70 MB | 67,00 s |
 
 O comportamento é estritamente linear: **um quadro por segundo de vídeo**, **~0,55 MB de ZIP por segundo de vídeo** e **~0,062 s de processamento por quadro** (cerca de 6% da duração do material). Extrapolando: uma hora de vídeo produz ~3 600 quadros, ~2 GB de ZIP e ~3,7 minutos de processamento.
 
@@ -506,19 +525,19 @@ O comportamento é estritamente linear: **um quadro por segundo de vídeo**, **~
 | Memória | 202,3 MB | 607,2 MB |
 | PIDs | 19 | 53 |
 
-A curva revela duas fases distintas: o FFmpeg satura múltiplos núcleos (até 29 threads), e a compactação subsequente fica presa em ~100% — um único núcleo, porque `archive/zip` é sequencial.
+A curva revela duas fases distintas: o FFmpeg satura múltiplos núcleos (até 29 threads), e a compactação subsequente fica presa em ~100%. Um único núcleo, porque `archive/zip` é sequencial.
 
 **Pontos positivos.** O desempenho de um trabalho isolado é bom e previsível. O FFmpeg é usado de forma eficiente, explorando paralelismo interno sem configuração adicional. A linearidade torna a capacidade fácil de projetar. O uso de memória é modesto e não cresce com o tamanho do arquivo de forma perigosa.
 
-**Fragilidades.** Não existe folga de CPU: um trabalho já consome 79% da máquina, de modo que "processar vários vídeos ao mesmo tempo" nesta instância significa apenas redistribuir o mesmo recurso, com a degradação de 4x que medimos. A escala horizontal é inviável por três razões acumuladas — o disco é local, os identificadores não são globalmente únicos e não há coordenação de trabalho. A compactação single-thread desperdiça capacidade justamente quando o FFmpeg liberou os núcleos. Aplicar Deflate sobre PNG (já comprimido) gasta CPU para ganho marginal.
+**Fragilidades.** Um job sozinho já usa 79% da CPU da máquina. Dois vídeos longos ao mesmo tempo só repartem essa CPU. Na rajada a latência foi 4x. Escalar com outra réplica esbarra em três coisas do código: o disco é local ao container, o id da linha 94 não é único entre processos, e não há fila para dividir o trabalho. Depois do FFmpeg, `archive/zip` compacta em uma thread só (~100% de CPU) e ainda aplica Deflate em PNG, que já é comprimido.
 
-**Risco.** A capacidade máxima é de aproximadamente um vídeo longo por instância; picos degradam todos os clientes simultaneamente; o volume de saída cresce sem limite (491,8 MB em uma hora de uso exploratório).
+**Risco.** A instância medida aguenta cerca de um vídeo longo por vez. Pico deixa todos os clientes lentos. `outputs/` cresceu 491,8 MB numa hora de teste, sem cota.
 
-**Esforço de correção.** Médio — extrair o processamento para workers escaláveis, com armazenamento compartilhado e concorrência controlada.
+**Esforço de correção.** Médio. Extrair o processamento para workers escaláveis, com armazenamento compartilhado e concorrência controlada.
 
 **Maturidade: 1/5**
 
-## Dimensão 9 — Observabilidade
+## Dimensão 9: Observabilidade
 
 **Referência.** Métricas técnicas e de negócio, logs estruturados com identificador de correlação, rastreamento distribuído, alertas e verificação de saúde (Fase 3, com New Relic).
 
@@ -526,15 +545,15 @@ A curva revela duas fases distintas: o FFmpeg satura múltiplos núcleos (até 2
 
 **Pontos positivos.** O log de acesso do Gin é, por si só, útil: foi a partir dele que identificamos a requisição de 67 s. As mensagens de progresso informam quantidade de quadros e criação do ZIP, o que ajuda no diagnóstico manual. A latência registrada por requisição é uma métrica técnica legítima e já disponível.
 
-**Fragilidades.** Não existe identificador de correlação — com requisições concorrentes compartilhando o mesmo timestamp, é impossível reconstruir qual linha de log pertence a qual cliente (as mensagens da rajada são indistinguíveis entre si). Não há métrica de negócio: vídeos processados, taxa de falha, duração por etapa, tamanho médio. Não há endpoint de saúde, o que impede *probes* de liveness/readiness. Não há alerta possível: a falha de um trabalho não produz nenhum sinal fora do corpo da resposta HTTP.
+**Fragilidades.** O `fmt.Printf` da linha 127 imprime o path, não um id de cliente. Na rajada, várias linhas apontam para `temp/20260919_161553` e não dá para saber qual request é qual. Não há contador de vídeos, taxa de falha nem duração por etapa. Não há `/health`. O ZIP misturado foi logado como sucesso: `ZIP criado`.
 
-**Risco.** Falhas e corrupção passam despercebidas — exatamente o que ocorreu com o ZIP contaminado, que do ponto de vista do servidor foi um sucesso.
+**Risco.** A falha da seção 6 não gera alerta. Para o log do Gin foi um HTTP 200.
 
-**Esforço de correção.** Baixo-médio — log estruturado com correlação, métricas e health são incrementais.
+**Esforço de correção.** Baixo-médio. Log estruturado com correlação, métricas e health são incrementais.
 
 **Maturidade: 1/5**
 
-## Dimensão 10 — Testabilidade e qualidade
+## Dimensão 10: Testabilidade e qualidade
 
 **Referência.** Testes unitários e de integração com cobertura mínima aferida (JaCoCo ≥ 80% na oficina), BDD para fluxos de negócio, análise estática com *quality gate*.
 
@@ -542,17 +561,17 @@ A curva revela duas fases distintas: o FFmpeg satura múltiplos núcleos (até 2
 
 **Pontos positivos.** Três funções são testáveis como estão, sem refatoração: `isValidVideoFile()` é uma função pura, e `createZipFile()`/`addFileToZip()` operam sobre caminhos passados como parâmetro, o que permite usar diretórios temporários. Há, portanto, um ponto de partida imediato para os primeiros testes.
 
-**Fragilidades.** O problema não é a ausência de testes, é a **resistência ao teste**. `processVideo()` invoca `exec.Command("ffmpeg")` diretamente: testá-la exige FFmpeg instalado, um vídeo real e tolerância a variações de codificação. `handleVideoUpload()` mistura HTTP e disco, exigindo servidor e sistema de arquivos reais. Sem interface para o processador ou para o armazenamento, não há ponto de injeção — nenhum dublê é possível.
+**Fragilidades.** `processVideo` chama `exec.Command("ffmpeg", ...)` na linha 135. Testar essa função exige o binário, um vídeo real e aceitar diferença de codec. `handleVideoUpload` grava em disco dentro do handler. Sem interface, não há dublê.
 
-O impacto é concreto e mensurável neste relatório: **o defeito de concorrência da seção 6 é trivialmente detectável por um teste** que dispare duas execuções no mesmo segundo e verifique a contagem de quadros. Ele sobreviveu porque não existe nenhum teste e porque o desenho não permite escrevê-lo com facilidade.
+A falha da seção 6 cabe num teste: duas chamadas de `processVideo` com o mesmo timestamp, e a contagem de PNG tem que ser a do vídeo enviado. Esse teste não existe. Não há nenhum `*_test.go`.
 
-**Risco.** Nenhuma regressão é detectável antes de produção; a corretude depende de inspeção manual.
+**Risco.** Regressão só aparece com o serviço no ar. A conferência é manual.
 
-**Esforço de correção.** Alto — requer as fronteiras da Dimensão 1 para ser feito adequadamente.
+**Esforço de correção.** Alto. Requer as fronteiras da Dimensão 1 para ser feito adequadamente.
 
 **Maturidade: 0/5**
 
-## Dimensão 11 — Engenharia de entrega
+## Dimensão 11: Engenharia de entrega
 
 **Referência.** Build multi-stage com imagem de runtime enxuta, configuração por ambiente (12-factor), pipeline de integração contínua com testes e publicação de imagem versionada.
 
@@ -575,73 +594,71 @@ O impacto é concreto e mensurável neste relatório: **o defeito de concorrênc
 | Configuração | nenhuma variável de ambiente | porta, fps e caminhos exigem recompilar |
 | CI/CD | inexistente | build e execução manuais |
 
-**Pontos positivos.** O build é **reprodutível e autocontido**: um `docker build` seguido de `docker run` sobe o sistema com FFmpeg na versão correta, sem instalar nada no host. Isso tem valor real — foi o que permitiu conduzir toda esta análise sem Go nem FFmpeg instalados na máquina. A imagem é fixada em versão de base (`golang:1.21-alpine`) e o `go.sum` garante integridade das 36 dependências do grafo.
+**Pontos positivos.** O build é **reprodutível e autocontido**: um `docker build` seguido de `docker run` sobe o sistema com FFmpeg na versão correta, sem instalar nada no host. Isso tem valor real. Foi o que permitiu conduzir toda esta análise sem Go nem FFmpeg instalados na máquina. A imagem é fixada em versão de base (`golang:1.21-alpine`) e o `go.sum` garante integridade das 36 dependências do grafo.
 
-**Fragilidades.** A imagem é ~50x maior do que um binário Go estático com FFmpeg exigiria, o que encarece registro, transferência e tempo de *pull* em escala. O `go run` mantém o compilador no ambiente de execução — ampliando a superfície de ataque e tornando o arranque lento, o que é especialmente ruim para autoescala e para recuperação de falha. A ausência de configuração externalizada viola diretamente o princípio de configuração do 12-factor: não há como apontar para outro armazenamento ou mudar a taxa de quadros sem alterar código.
+**Fragilidades.** A imagem final tem 852 MB. Um binário Go com FFmpeg cabe numa imagem bem menor, e o `pull` em escala paga esse tamanho. O `go run` deixa o compilador no container e o boot em 13,26 s. Porta, `fps` e pastas estão no código. Mudar qualquer um exige recompilar. Não há variável de ambiente.
 
-**Risco.** Implantação lenta, recuperação lenta, custo de infraestrutura desnecessário e impossibilidade de promover o mesmo artefato entre ambientes com configurações distintas.
+**Risco.** Cada deploy puxa 852 MB e cada restart espera 13,26 s. Sem variável de ambiente, o mesmo binário não muda porta, fps nem pasta entre ambientes.
 
-**Esforço de correção.** Baixo — multi-stage com `distroless`/`alpine`, binário compilado, usuário não-root, healthcheck e leitura de variáveis de ambiente são mudanças pontuais de alto retorno.
+**Esforço de correção.** Baixo. Multi-stage com `distroless`/`alpine`, binário compilado, usuário não-root, healthcheck e leitura de variáveis de ambiente são mudanças pontuais de alto retorno.
 
 **Maturidade: 1/5**
 
-## Dimensão 12 — Contrato de API
+## Dimensão 12: Contrato de API
 
-**Referência.** Semântica HTTP correta, contrato documentado (OpenAPI/Swagger), versionamento e coleção de testes (Postman) — todos presentes nas fases anteriores.
+**Referência.** Semântica HTTP correta, contrato documentado (OpenAPI/Swagger), versionamento e coleção de testes (Postman). Todos presentes nas fases anteriores.
 
 **Observado.** Quatro rotas funcionais mais duas estáticas, respostas em JSON com estrutura estável.
 
 **Pontos positivos.** O formato de resposta é consistente e autoexplicativo: `success`, `message` e, no sucesso, `zip_path`, `frame_count` e `images`. O erro de validação de entrada usa corretamente **HTTP 400**, e o arquivo inexistente em `/download/:filename` usa corretamente **HTTP 404**. Os cabeçalhos de download são apropriados (`Content-Disposition: attachment`, `Content-Type: application/zip`). O `Content-Type` do vídeo servido estaticamente também é correto (`video/mp4`).
 
-**Fragilidades.** A falha de processamento retorna **HTTP 200 com `success: false`** — comprovado em todos os cenários de erro da rajada e no `fake.mp4`. Um cliente que verifique apenas o código de status conclui que o trabalho deu certo. Esse é o mecanismo pelo qual a corrida da seção 6 permanece invisível. O `stderr` completo do FFmpeg no campo `message` (3 888 bytes) mistura diagnóstico interno com contrato público. Não existe OpenAPI, versionamento (`/v1`) nem paginação em `/api/status`, que devolve a lista inteira. O DTO `VideoRequest` está declarado mas não é usado por nenhum handler — código morto no contrato.
+**Fragilidades.** Erro de processamento volta **HTTP 200 com `success: false`**. Aconteceu em REQ2–REQ4, REQ6, REQ7 e no `fake.mp4`. Quem olha só o status trata a corrida da seção 6 como sucesso. O campo `message` levou 3 888 bytes de `stderr` do FFmpeg, com path interno e flags de build. Não há OpenAPI, `/v1` nem paginação: `/api/status` devolve a lista inteira. `VideoRequest` está declarado e nenhum handler lê esse tipo.
 
-**Risco.** Integrações construídas sobre esta API tratarão falhas como sucesso.
+**Risco.** Cliente que confia no HTTP 200 trata falha e ZIP misturado como sucesso.
 
-**Esforço de correção.** Baixo — mapear erros para 4xx/5xx, sanitizar mensagens e publicar contrato.
+**Esforço de correção.** Baixo. Mapear erros para 4xx/5xx, sanitizar mensagens e publicar contrato.
 
 **Maturidade: 2/5**
 
-## Dimensão 13 — Manutenibilidade e evolutividade
+## Dimensão 13: Manutenibilidade e evolutividade
 
 **Referência.** Módulos com fronteiras claras, front-end desacoplado, dívida técnica registrada e decisões documentadas em ADR/RFC.
 
 **Observado.** 437 linhas legíveis, mas com 33% dedicadas a HTML/CSS/JavaScript dentro de uma string Go. Nenhum README, documentação de arquitetura, ADR ou registro de decisão acompanha o projeto.
 
-**Pontos positivos.** O tamanho reduzido é uma vantagem genuína: o sistema inteiro é auditável em uma sessão, sem ferramenta de navegação de código — foi o que permitiu produzir este diagnóstico com precisão. Os nomes de função descrevem intenção. O comentário autodepreciativo no `Dockerfile` demonstra que as limitações são conscientes e intencionais para o contexto de demonstração, o que é preferível a dívida oculta.
+**Pontos positivos.** 437 linhas, dá para ler o arquivo inteiro numa sentada. Os nomes das funções dizem o que elas fazem. O `Dockerfile` avisa na linha 1 que é um exemplo de como não fazer.
 
-**Fragilidades.** Alterar o CSS de um botão exige recompilar e reimplantar o serviço que executa o FFmpeg. O front-end não tem build, lint, minificação ou versionamento independente. Os *hotspots* estão concentrados: `processVideo()` e `handleVideoUpload()` acumulam a maior parte da complexidade e a totalidade dos defeitos observados, e qualquer evolução passa por elas. A ausência de configuração externa significa que cada ambiente exige um binário diferente.
+**Fragilidades.** O CSS do botão está na string de `getHTMLForm()` (linha 293). Mudar a página recompila o processo que roda o FFmpeg. A corrida, o HTTP 200 e o delete do MP4 estão em `processVideo` e `handleVideoUpload`. Porta, fps e pastas estão no fonte, então cada ambiente é outro binário.
 
-**Risco.** O custo de cada mudança futura é desproporcional ao seu tamanho, e a falta de fronteiras faz com que correções em uma dimensão exijam tocar código de outra.
+**Risco.** Uma correção pequena passa por essas duas funções e pelo binário inteiro.
 
-**Esforço de correção.** Médio — separar a interface e externalizar configuração são passos independentes e de baixo risco.
+**Esforço de correção.** Médio. Separar a interface e externalizar configuração são passos independentes e de baixo risco.
 
 **Maturidade: 1/5**
 
 ---
 
-# Parte IV — Consolidação
+# Parte IV: Consolidação
 
-## 14. Pontos fortes do baseline
+## 14. O que o baseline já faz e vale manter
 
-Esta seção não é cortesia: são decisões e propriedades que devem ser **preservadas** em qualquer evolução, e que reduzem o esforço futuro.
+**Go, Gin e FFmpeg resolvem a extração.** O comando usa `-vf fps=1` e `-y`. A linguagem e a lib de HTTP servem para um binário só.
 
-**A escolha tecnológica é adequada ao problema.** Go oferece concorrência nativa e binário único; Gin é leve e suficiente para a superfície necessária; FFmpeg é a ferramenta correta para extração de quadros e foi invocado com os parâmetros apropriados (`-vf fps=1`, `-y`). Nada aqui precisa ser trocado por razões técnicas.
+**`docker build` sobe o sistema.** A imagem traz o FFmpeg 6.1.1. A análise rodou sem Go e sem FFmpeg instalados no Windows.
 
-**O empacotamento é reprodutível.** `docker build` seguido de `docker run` entrega o sistema funcionando, com a versão exata do FFmpeg, sem instalar dependências no host. Toda esta análise foi conduzida sem Go nem FFmpeg na máquina — o valor prático disso é considerável.
+**O vídeo não vai para a RAM.** O pico no job de 483 quadros foi 607 MB, com os PNGs no disco.
 
-**O processamento evita carregar os dados em memória.** Vídeo e quadros transitam por disco; o pico de memória em 483 quadros foi de 607 MB. É a decisão correta e permanece válida em qualquer arquitetura futura.
+**`exec.Command` não passa por shell.** Os argumentos vão em vetor. O nome do arquivo do cliente não entra na linha de comando.
 
-**A invocação de processo externo é segura contra injeção.** `exec.Command` recebe argumentos em vetor, sem interpretação por shell. Não há concatenação de entrada do usuário em linha de comando.
+**Cada I/O checa o erro.** O `defer os.RemoveAll` e o `os.Remove` condicionado a `result.Success` estão no código. O furo é a pasta compartilhada (linha 129), não a ausência do `if err`.
 
-**O tratamento de erro é disciplinado no nível da função.** Cada operação de I/O verifica seu erro e produz mensagem específica. A intenção de compensação existe (`defer os.RemoveAll`, `os.Remove` condicionado ao sucesso) — o que falta é escopo de recurso, não cuidado.
+**`isValidVideoFile`, `createZipFile` e `addFileToZip` já recebem parâmetro e devolvem erro.** Dá para reusar as três.
 
-**Existem funções prontas para reuso e teste.** `isValidVideoFile()`, `createZipFile()` e `addFileToZip()` são coesas e podem ser aproveitadas praticamente como estão.
+**Extensão inválida volta 400.** Travessia em `/download` e `/outputs` voltou 404. Arquivo inexistente no download volta 404.
 
-**Há proteções pontuais funcionando.** A validação de extensão rejeita corretamente arquivos não suportados; as tentativas de travessia de caminho falharam; os códigos 400 e 404 são usados adequadamente nos casos em que aparecem.
+**O `Dockerfile` declara o atalho.** As duas primeiras linhas dizem que o arquivo é um exemplo de como não fazer.
 
-**As limitações são intencionais e declaradas.** O `Dockerfile` avisa explicitamente que não segue boas práticas. Um protótipo honesto sobre seu escopo é um ponto de partida melhor do que um sistema que aparenta maturidade que não tem.
-
-**O tamanho é uma vantagem.** 437 linhas auditáveis integralmente significam que a evolução pode ser feita com entendimento completo do comportamento atual — situação rara.
+**437 linhas.** O comportamento atual cabe numa leitura do `main.go`.
 
 ## 15. Matriz de risco
 
@@ -689,23 +706,23 @@ Quatro riscos críticos, dos quais três são certos (não dependem de condiçã
 
 **Média: 0,7 / 5.**
 
-A leitura relevante não é a média, mas a distribuição. As dimensões em zero — domínio, concorrência, persistência e segurança — se sustentam mutuamente: sem entidade de trabalho não há onde registrar estado; sem persistência não há dono; sem dono não há autorização; sem identificador único não há isolamento. Atacar qualquer uma isoladamente produz ganho limitado.
+Domínio, concorrência, persistência e segurança estão em zero e dependem uma da outra. Sem struct de job não há estado para gravar. Sem banco não há dono. Sem dono as rotas não filtram. Sem id único a pasta `temp/` é compartilhada. Corrigir só uma delas deixa as outras no mesmo lugar.
 
-Dimensões com nota 1 ou 2 (entrega, contrato, observabilidade) admitem melhoria incremental de alto retorno e baixo risco, independentemente de decisões arquiteturais maiores.
+Entrega, contrato e observabilidade (notas 1 e 2) mudam com healthcheck, código HTTP e log, sem reescrever o fluxo.
 
-## 17. Síntese do diagnóstico
+## 17. Síntese
 
-Arquiteturalmente, o baseline é um **monólito de deploy** (aceitável) cuja estrutura interna é **Transaction Script**, não Clean Architecture, não camadas e não hexagonal. Não se critica a ausência de microsserviços; critica-se a ausência de fronteiras *dentro* do único processo.
+O deploy é um processo. Por dentro, `handleVideoUpload` e `processVideo` são um script: recebem o arquivo, chamam o FFmpeg e respondem. Não há domínio, camada nem porta.
 
-É um **protótipo de demonstração competente para o propósito com que foi feito** e inadequado para operação multiusuário — não por falta de recursos, mas porque três decisões de projeto interagem de forma destrutiva:
+Três pontos do código impedem uso com mais de um usuário:
 
-1. **Processamento dentro do request HTTP** transforma a conexão do cliente no orquestrador, atando a duração da operação ao timeout da rede e impedindo absorção de picos.
-2. **Timestamp de um segundo como identidade** faz requisições concorrentes compartilharem área de trabalho e nome de saída, produzindo corrupção e vazamento silenciosos.
-3. **Filesystem efêmero como banco de dados** elimina dono, estado, histórico e recuperação.
+1. **O FFmpeg está dentro do `POST`.** A linha 117 chama `processVideo` e a linha 123 só então responde. A conexão espera o vídeo inteiro. Não há fila.
+2. **O id é o segundo do relógio.** Linha 94, formato `20060102_150405`. Linhas 96, 129 e 160 usam essa string no MP4, na pasta e no ZIP. Dois uploads no mesmo segundo compartilham os três. O `RemoveAll` da linha 131 apaga a pasta do outro.
+3. **O banco é o disco do container.** `uploads/`, `temp/` e `outputs/`, sem volume. Encerrar o processo apaga o resultado e não deixa histórico.
 
-Nenhuma das três é um defeito de implementação a ser corrigido pontualmente: são escolhas estruturais, adequadas a um script de demonstração e incompatíveis com um produto. É precisamente por isso que o diagnóstico precede a proposta — a decisão de arquitetura deve responder a estes três pontos com evidência, e não a uma preferência tecnológica.
+As três estão no mesmo `main.go`. Corrigir o nome do arquivo sem tirar o FFmpeg do request, e sem gravar o job, deixa o resto no lugar.
 
-O que **não** precisa mudar: a linguagem, o framework HTTP, a ferramenta de extração, a estratégia de não carregar binários em memória, a reprodutibilidade do empacotamento e as funções já coesas.
+O que permanece: Go, Gin, FFmpeg, gravar o binário em disco em vez de RAM, `docker build` reproduzível, e as funções `isValidVideoFile`, `createZipFile` e `addFileToZip`.
 
 ## 18. Apêndices
 
@@ -719,7 +736,7 @@ Todos os arquivos em `docs/evidence/`.
 | `02-home-headers.txt` | Cabeçalhos de resposta, incluindo CORS `*` |
 | `03-download.txt` | Download de ZIP sem credencial (6 055 887 bytes) |
 | `04-static-outputs.txt` | Mesmo arquivo obtido pela rota estática |
-| `05-path-traversal.txt` | Cinco tentativas de travessia — todas 404 |
+| `05-path-traversal.txt` | Cinco tentativas de travessia. Todas 404 |
 | `06-invalid-txt-curl.txt` | `.txt` rejeitado com HTTP 400 em 12 ms |
 | `07-fake-mp4-curl.txt` | Extensão falsa aceita; HTTP 200 com `stderr` completo |
 | `08-concurrent-*.txt` | Primeiro teste de concorrência (2 uploads) |

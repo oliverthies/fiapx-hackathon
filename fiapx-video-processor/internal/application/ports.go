@@ -3,10 +3,19 @@ package application
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/oliverthies/fiapx-video-processor/internal/domain"
 )
+
+type ProcessResult struct {
+	ZipRelPath      string
+	ThumbRelPath    string
+	Frames          int
+	ProcessDuration time.Duration
+	ZipBytes        int64
+}
 
 type UserRepository interface {
 	Create(ctx context.Context, user *domain.User) error
@@ -19,6 +28,7 @@ type JobRepository interface {
 	Update(ctx context.Context, job *domain.VideoJob) error
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.VideoJob, error)
 	ListByUser(ctx context.Context, userID uuid.UUID) ([]*domain.VideoJob, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type PasswordHasher interface {
@@ -31,9 +41,10 @@ type TokenIssuer interface {
 }
 
 type Storage interface {
-	SaveOriginal(ctx context.Context, jobID uuid.UUID, filename string, r io.Reader) (path string, err error)
-	Open(ctx context.Context, path string) (io.ReadCloser, error)
-	Absolute(path string) string
+	SaveOriginal(ctx context.Context, jobID uuid.UUID, filename string, r io.Reader) (key string, err error)
+	Put(ctx context.Context, key string, r io.Reader) (n int64, err error)
+	Open(ctx context.Context, key string) (io.ReadCloser, error)
+	Remove(ctx context.Context, key string) error
 }
 
 type Queue interface {
@@ -41,7 +52,7 @@ type Queue interface {
 }
 
 type VideoProcessor interface {
-	ExtractFrames(ctx context.Context, job *domain.VideoJob) (zipRelPath string, frames int, err error)
+	ExtractFrames(ctx context.Context, job *domain.VideoJob) (ProcessResult, error)
 }
 
 type Notifier interface {

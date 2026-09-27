@@ -1,6 +1,6 @@
 @startuml c4-container-baseline
 !define RECTANGLE class
-title FIAP X baseline — C4 nível 2 (container) — as-is em 19/09/2026
+title FIAP X baseline: C4 nível 2 (container), as-is em 19/09/2026
 
 skinparam defaultFontName Segoe UI
 skinparam shadowing false
@@ -11,7 +11,7 @@ skinparam rectangle {
 
 actor "Usuário anônimo\n(sem identidade)" as user
 
-rectangle "Container Docker único\nimagem fiapx-baseline (852 MB)\nCMD go run main.go — PID 1 root" as box #F7F7F7 {
+rectangle "Container Docker único\nimagem fiapx-baseline (852 MB)\nCMD go run main.go, PID 1 root" as box #F7F7F7 {
   rectangle "Servidor Gin :8080\n(modo debug, trust all proxies)\nHTML + API na mesma binary" as gin
   rectangle "processVideo()\nexec.Command(ffmpeg)\n-vf fps=1" as proc
   rectangle "FFmpeg 6.1.1\nmultithread (até 29 threads)" as ffmpeg
