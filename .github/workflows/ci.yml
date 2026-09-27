@@ -19,7 +19,7 @@ jobs:
         run: go test -cover ./internal/domain/ ./internal/application/
       - name: domain has no adapter imports
         run: |
-          if grep -R --include='*.go' -E 'chi|amqp|os/exec|pgx|gin|prometheus' internal/domain internal/application; then
+          if grep -R --include='*.go' -nE '^[[:space:]]*(_|[[:alnum:]]+)?[[:space:]]*"(os/exec|github.com/go-chi/|github.com/rabbitmq/amqp|github.com/jackc/pgx|github.com/gin-gonic/|github.com/prometheus/)' internal/domain internal/application; then
             echo "domain/application must not import infrastructure"
             exit 1
           fi
