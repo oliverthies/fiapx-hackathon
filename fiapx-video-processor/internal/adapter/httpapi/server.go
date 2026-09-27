@@ -181,6 +181,7 @@ func (s *Server) download(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", "attachment; filename="+id.String()+".zip")
+	w.Header().Set("Cache-Control", "no-store")
 	_, _ = io.Copy(w, f)
 }
 
@@ -206,7 +207,7 @@ func (s *Server) thumbnail(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 	w.Header().Set("Content-Type", "image/png")
-	w.Header().Set("Cache-Control", "private, max-age=3600")
+	w.Header().Set("Cache-Control", "no-store")
 	_, _ = io.Copy(w, f)
 }
 

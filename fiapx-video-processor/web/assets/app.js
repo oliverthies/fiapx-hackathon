@@ -62,6 +62,13 @@ async function api(path, opts) {
   return { res, body };
 }
 
+function clearThumbs() {
+  for (const url of thumbURLs.values()) {
+    URL.revokeObjectURL(url);
+  }
+  thumbURLs.clear();
+}
+
 function setSession(jwt, email) {
   if (jwt) {
     sessionStorage.setItem(TOKEN_KEY, jwt);
@@ -69,6 +76,10 @@ function setSession(jwt, email) {
   } else {
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(EMAIL_KEY);
+    clearThumbs();
+    jobsCache = [];
+    tableEl.innerHTML = "";
+    dashRecent.innerHTML = "";
   }
   renderShell();
 }
@@ -440,7 +451,7 @@ function hydrateThumbs() {
       return;
     }
     try {
-      const res = await fetch("/videos/" + id + "/thumb", { headers: authHeaders() });
+      const res = await fetch("/videos/" + id + "/thumb", { headers: authHeaders(), cache: "no-store" });
       if (!res.ok) return;
       const url = URL.createObjectURL(await res.blob());
       thumbURLs.set(id, url);
@@ -567,7 +578,7 @@ function formatBytes(n) {
 
 async function downloadZip(id) {
   try {
-    const res = await fetch("/videos/" + id + "/zip", { headers: authHeaders() });
+    const res = await fetch("/videos/" + id + "/zip", { headers: authHeaders(), cache: "no-store" });
     if (!res.ok) {
       const body = await res.json().catch(() => ({ error: res.statusText }));
       throw new Error(body.error || res.statusText);
